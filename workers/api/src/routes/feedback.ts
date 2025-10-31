@@ -26,6 +26,7 @@ feedback.post('/', async (c) => {
 
     // Create feedback entry
     const id = await createFeedback(db, project.id, {
+      environment: data.environment,
       type: data.type,
       title: data.title,
       description: data.description,
@@ -48,7 +49,7 @@ feedback.post('/', async (c) => {
 });
 
 // GET /api/v1/feedback - Query feedback (admin only)
-feedback.get('/', async (c) => {
+export async function handleGetFeedback(c: any) {
   try {
     const query = c.req.query();
     const validation = feedbackQuerySchema.safeParse(query);
@@ -91,6 +92,8 @@ feedback.get('/', async (c) => {
       error: error.message || 'Internal server error',
     }, 500);
   }
-});
+}
+
+feedback.get('/', handleGetFeedback);
 
 export default feedback;

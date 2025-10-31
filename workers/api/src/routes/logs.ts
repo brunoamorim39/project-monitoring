@@ -26,6 +26,7 @@ logs.post('/', async (c) => {
 
     // Create log entries
     const logsData = data.logs.map(log => ({
+      environment: log.environment,
       level: log.level,
       message: log.message,
       timestamp: log.timestamp,
@@ -48,7 +49,7 @@ logs.post('/', async (c) => {
 });
 
 // GET /api/v1/logs - Query logs (admin only)
-logs.get('/', async (c) => {
+export async function handleGetLogs(c: any) {
   try {
     const query = c.req.query();
     const validation = logsQuerySchema.safeParse(query);
@@ -74,10 +75,13 @@ logs.get('/', async (c) => {
 
     const results = await getLogs(db, {
       projectId,
+      environment: filters.environment,
       level: filters.level,
+      search: filters.search,
       before: filters.before,
       after: filters.after,
       limit: filters.limit,
+      offset: filters.offset,
     });
 
     return c.json({
@@ -91,6 +95,8 @@ logs.get('/', async (c) => {
       error: error.message || 'Internal server error',
     }, 500);
   }
-});
+}
+
+logs.get('/', handleGetLogs);
 
 export default logs;

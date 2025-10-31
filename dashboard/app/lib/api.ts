@@ -14,23 +14,26 @@ async function fetchAPI<T = any>(
   endpoint: string,
   options: FetchOptions = {}
 ): Promise<T> {
-  const { params, ...fetchOptions } = options;
+  const { params, username: optUsername, password: optPassword, ...fetchOptions} = options;
 
   // Build URL with query params
   const url = new URL(`${API_BASE_URL}${endpoint}`);
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.append(key, String(value));
+      // Skip undefined, null, and empty string values
+      if (value !== undefined && value !== null && value !== '') {
+        url.searchParams.append(key, String(value));
+      }
     });
   }
 
   // Get credentials from environment
   const username = typeof window !== 'undefined'
     ? window.ENV?.ADMIN_USERNAME
-    : options.username;
+    : optUsername;
   const password = typeof window !== 'undefined'
     ? window.ENV?.ADMIN_PASSWORD
-    : options.password;
+    : optPassword;
 
   if (!username || !password) {
     throw new Error('Missing API key');

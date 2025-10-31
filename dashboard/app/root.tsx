@@ -8,18 +8,21 @@ import {
 } from "@remix-run/react";
 import type { LinksFunction, LoaderFunctionArgs } from "@remix-run/cloudflare";
 import stylesheet from "~/tailwind.css?url";
+import { getEnv } from "~/utils/env.server";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: stylesheet },
 ];
 
 export async function loader({ context }: LoaderFunctionArgs) {
-  // Expose environment variables to the client
+  // Get environment variables using helper that handles both dev and production
+  const env = getEnv(context);
+
   return {
     ENV: {
-      API_URL: context.cloudflare.env.API_URL,
-      ADMIN_USERNAME: context.cloudflare.env.ADMIN_USERNAME,
-      ADMIN_PASSWORD: context.cloudflare.env.ADMIN_PASSWORD,
+      API_URL: env.API_URL || 'http://localhost:8787',
+      ADMIN_USERNAME: env.ADMIN_USERNAME || 'admin',
+      ADMIN_PASSWORD: env.ADMIN_PASSWORD || 'totally-secure-password',
     },
   };
 }
@@ -33,7 +36,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body className="bg-gray-50">
+      <body style={{ background: '#0d1117', color: '#c9d1d9', margin: 0, padding: 0 }}>
         {children}
         <ScrollRestoration />
         <Scripts />

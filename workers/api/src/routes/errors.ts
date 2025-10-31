@@ -26,6 +26,7 @@ errors.post('/', async (c) => {
 
     // Create or update error entry (with deduplication)
     const result = await createOrUpdateError(db, project.id, {
+      environment: data.environment,
       message: data.message,
       stackTrace: data.stackTrace,
       errorType: data.errorType,
@@ -50,7 +51,7 @@ errors.post('/', async (c) => {
 });
 
 // GET /api/v1/errors - Query errors (admin only)
-errors.get('/', async (c) => {
+export async function handleGetErrors(c: any) {
   try {
     const query = c.req.query();
     const validation = errorsQuerySchema.safeParse(query);
@@ -92,6 +93,8 @@ errors.get('/', async (c) => {
       error: error.message || 'Internal server error',
     }, 500);
   }
-});
+}
+
+errors.get('/', handleGetErrors);
 
 export default errors;

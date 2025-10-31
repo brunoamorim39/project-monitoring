@@ -1,13 +1,19 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/cloudflare";
 import { useLoaderData, useSearchParams } from "@remix-run/react";
 import Layout from "~/components/Layout";
-import { api } from "~/lib/api";
+import { createServerAPI } from "~/lib/api";
+import { getEnv } from "~/utils/env.server";
 
-export async function loader({ request }: LoaderFunctionArgs) {
+export async function loader({ request, context }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const project = url.searchParams.get("project") || undefined;
 
   try {
+    const env = getEnv(context);
+    const api = createServerAPI(
+      env.ADMIN_USERNAME || 'admin',
+      env.ADMIN_PASSWORD || 'totally-secure-password'
+    );
     const response = await api.getHealthChecks({ project });
     const projects = await api.getProjects();
     return json({ healthChecks: response.data, projects: projects.data });
@@ -34,20 +40,30 @@ export default function Health() {
     <Layout>
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Health Monitoring</h2>
-          <p className="mt-1 text-sm text-gray-500">
+          <h2 className="text-2xl font-bold" style={{ color: '#c9d1d9' }}>Health Monitoring</h2>
+          <p className="mt-1 text-sm" style={{ color: '#8b949e' }}>
             Monitor system health across projects
           </p>
         </div>
 
         {/* Filters */}
-        <div className="bg-white shadow rounded-lg p-4">
+        <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: '6px', padding: '1rem' }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium" style={{ color: '#c9d1d9' }}>
               Project
             </label>
             <select
-              className="mt-1 block w-full max-w-md rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              style={{
+                background: '#0d1117',
+                border: '1px solid #30363d',
+                color: '#c9d1d9',
+                padding: '0.375rem 0.75rem',
+                borderRadius: '6px',
+                width: '100%',
+                maxWidth: '28rem',
+                marginTop: '0.25rem',
+                fontSize: '0.875rem'
+              }}
               value={searchParams.get("project") || ""}
               onChange={(e) => handleFilterChange("project", e.target.value)}
             >
@@ -62,37 +78,47 @@ export default function Health() {
         </div>
 
         {/* Health Checks List */}
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: '6px', overflow: 'hidden' }}>
           {error && (
-            <div className="px-4 py-3 bg-red-50 border-b border-red-200">
-              <p className="text-sm text-red-800">Error: {error}</p>
+            <div style={{ padding: '0.75rem 1rem', background: '#3a1f1f', borderBottom: '1px solid #da3633' }}>
+              <p className="text-sm" style={{ color: '#f85149' }}>Error: {error}</p>
             </div>
           )}
 
           {healthChecks.length === 0 ? (
-            <div className="px-4 py-8 text-center text-gray-500">
+            <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#8b949e' }}>
               No health checks found
             </div>
           ) : (
-            <ul className="divide-y divide-gray-200">
+            <ul style={{ borderTop: 'none' }}>
               {healthChecks.map((check: any) => (
-                <li key={check.id} className="px-4 py-4 hover:bg-gray-50">
+                <li
+                  key={check.id}
+                  style={{
+                    padding: '1rem',
+                    borderTop: '1px solid #30363d',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#0d1117'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-2">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                          style={
                             check.status === "healthy"
-                              ? "bg-green-100 text-green-800"
+                              ? { background: '#1b3c1b', color: '#3fb950', border: '1px solid #238636' }
                               : check.status === "degraded"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
+                              ? { background: '#352f1b', color: '#d29922', border: '1px solid #bf8700' }
+                              : { background: '#3a1f1f', color: '#f85149', border: '1px solid #da3633' }
+                          }
                         >
                           {check.status}
                         </span>
                         {check.responseTime && (
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs" style={{ color: '#8b949e' }}>
                             {check.responseTime}ms
                           </span>
                         )}
@@ -100,16 +126,24 @@ export default function Health() {
 
                       {check.metadata && (
                         <details className="mt-2">
-                          <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
+                          <summary
+                            className="text-xs cursor-pointer"
+                            style={{ color: '#58a6ff' }}
+                            onMouseEnter={(e) => e.currentTarget.style.color = '#79c0ff'}
+                            onMouseLeave={(e) => e.currentTarget.style.color = '#58a6ff'}
+                          >
                             View details
                           </summary>
-                          <pre className="mt-2 text-xs bg-gray-50 p-2 rounded overflow-x-auto">
+                          <pre
+                            className="mt-2 text-xs p-2 rounded overflow-x-auto"
+                            style={{ background: '#0d1117', color: '#c9d1d9', border: '1px solid #30363d' }}
+                          >
                             {check.metadata}
                           </pre>
                         </details>
                       )}
 
-                      <p className="mt-1 text-xs text-gray-500">
+                      <p className="mt-1 text-xs" style={{ color: '#8b949e' }}>
                         {new Date(check.timestamp).toLocaleString()}
                       </p>
                     </div>

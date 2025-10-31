@@ -2,6 +2,7 @@ import { json, type LoaderFunctionArgs, type MetaFunction } from "@remix-run/clo
 import { useLoaderData } from "@remix-run/react";
 import Layout from "~/components/Layout";
 import { createServerAPI } from "~/lib/api";
+import { getEnv } from "~/utils/env.server";
 
 export const meta: MetaFunction = () => {
   return [
@@ -12,10 +13,13 @@ export const meta: MetaFunction = () => {
 
 export async function loader({ context }: LoaderFunctionArgs) {
   try {
-    const api = createServerAPI(
-      context.cloudflare.env.ADMIN_USERNAME,
-      context.cloudflare.env.ADMIN_PASSWORD
-    );
+    // Get environment variables using helper that handles both dev and production
+    const env = getEnv(context);
+
+    const username = env.ADMIN_USERNAME || 'admin';
+    const password = env.ADMIN_PASSWORD || 'totally-secure-password';
+
+    const api = createServerAPI(username, password);
     const stats = await api.getStats();
     const projects = await api.getProjects();
     return json({ stats: stats.data, projects: projects.data });
@@ -31,8 +35,8 @@ export default function Index() {
   if (error) {
     return (
       <Layout>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">Failed to load dashboard: {error}</p>
+        <div style={{ background: '#da3633', border: '1px solid #f85149', borderRadius: '6px', padding: '1rem' }}>
+          <p style={{ color: '#ffd7d5' }}>Failed to load dashboard: {error}</p>
         </div>
       </Layout>
     );
@@ -43,8 +47,8 @@ export default function Index() {
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Dashboard Overview</h2>
-          <p className="mt-1 text-sm text-gray-500">
+          <h2 className="text-2xl font-bold" style={{ color: '#58a6ff' }}>Dashboard Overview</h2>
+          <p className="mt-1 text-sm" style={{ color: '#8b949e' }}>
             Monitor all your projects in one place
           </p>
         </div>
@@ -84,24 +88,33 @@ export default function Index() {
         </div>
 
         {/* Projects List */}
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">Projects</h3>
+        <div style={{ background: '#161b22', borderRadius: '6px', border: '1px solid #30363d' }}>
+          <div className="px-4 py-5 sm:px-6" style={{ borderBottom: '1px solid #30363d' }}>
+            <h3 className="text-lg font-medium" style={{ color: '#c9d1d9' }}>Projects</h3>
           </div>
-          <ul className="divide-y divide-gray-200">
+          <ul style={{ borderTop: 'none' }}>
             {projects.length === 0 ? (
-              <li className="px-4 py-4 text-gray-500">No projects yet</li>
+              <li className="px-4 py-4" style={{ color: '#8b949e' }}>No projects yet</li>
             ) : (
               projects.map((project: any) => (
-                <li key={project.id} className="px-4 py-4 hover:bg-gray-50">
+                <li
+                  key={project.id}
+                  className="px-4 py-4"
+                  style={{
+                    borderTop: '1px solid #30363d',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#0d1117'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-medium" style={{ color: '#c9d1d9' }}>
                         {project.name}
                       </p>
-                      <p className="text-sm text-gray-500">/{project.slug}</p>
+                      <p className="text-sm" style={{ color: '#8b949e' }}>/{project.slug}</p>
                     </div>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm" style={{ color: '#8b949e' }}>
                       Created {new Date(project.createdAt).toLocaleDateString()}
                     </div>
                   </div>
@@ -116,17 +129,23 @@ export default function Index() {
 }
 
 function StatCard({ title, value, color }: { title: string; value: number; color: string }) {
-  const colorClasses: Record<string, string> = {
-    blue: "bg-blue-50 text-blue-700 border-blue-200",
-    yellow: "bg-yellow-50 text-yellow-700 border-yellow-200",
-    red: "bg-red-50 text-red-700 border-red-200",
-    green: "bg-green-50 text-green-700 border-green-200",
-    orange: "bg-orange-50 text-orange-700 border-orange-200",
-    purple: "bg-purple-50 text-purple-700 border-purple-200",
+  const colorStyles: Record<string, { background: string; color: string; border: string }> = {
+    blue: { background: '#1c2d41', color: '#58a6ff', border: '1px solid #388bfd' },
+    yellow: { background: '#352f1b', color: '#d29922', border: '1px solid #bf8700' },
+    red: { background: '#3a1f1f', color: '#f85149', border: '1px solid #da3633' },
+    green: { background: '#1b3c1b', color: '#3fb950', border: '1px solid #238636' },
+    orange: { background: '#3a2a1b', color: '#db6d28', border: '1px solid #bd561d' },
+    purple: { background: '#2d2440', color: '#a371f7', border: '1px solid #8957e5' },
   };
 
   return (
-    <div className={`border rounded-lg p-6 ${colorClasses[color]}`}>
+    <div
+      className="rounded-lg p-6"
+      style={{
+        ...colorStyles[color],
+        transition: 'transform 0.2s'
+      }}
+    >
       <p className="text-sm font-medium opacity-75">{title}</p>
       <p className="mt-2 text-3xl font-bold">{value}</p>
     </div>

@@ -1,14 +1,20 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/cloudflare";
 import { useLoaderData, useSearchParams } from "@remix-run/react";
 import Layout from "~/components/Layout";
-import { api } from "~/lib/api";
+import { createServerAPI } from "~/lib/api";
+import { getEnv } from "~/utils/env.server";
 
-export async function loader({ request }: LoaderFunctionArgs) {
+export async function loader({ request, context }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const project = url.searchParams.get("project") || undefined;
   const resolved = url.searchParams.get("resolved") || undefined;
 
   try {
+    const env = getEnv(context);
+    const api = createServerAPI(
+      env.ADMIN_USERNAME || 'admin',
+      env.ADMIN_PASSWORD || 'totally-secure-password'
+    );
     const response = await api.getErrors({
       project,
       resolved: resolved === "true" ? true : resolved === "false" ? false : undefined,
@@ -38,21 +44,30 @@ export default function Errors() {
     <Layout>
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Errors</h2>
-          <p className="mt-1 text-sm text-gray-500">
+          <h2 className="text-2xl font-bold" style={{ color: '#c9d1d9' }}>Errors</h2>
+          <p className="mt-1 text-sm" style={{ color: '#8b949e' }}>
             Track and manage errors across projects
           </p>
         </div>
 
         {/* Filters */}
-        <div className="bg-white shadow rounded-lg p-4">
+        <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: '6px', padding: '1rem' }}>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium" style={{ color: '#c9d1d9' }}>
                 Project
               </label>
               <select
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                style={{
+                  background: '#0d1117',
+                  border: '1px solid #30363d',
+                  color: '#c9d1d9',
+                  padding: '0.375rem 0.75rem',
+                  borderRadius: '6px',
+                  width: '100%',
+                  marginTop: '0.25rem',
+                  fontSize: '0.875rem'
+                }}
                 value={searchParams.get("project") || ""}
                 onChange={(e) => handleFilterChange("project", e.target.value)}
               >
@@ -66,11 +81,20 @@ export default function Errors() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium" style={{ color: '#c9d1d9' }}>
                 Status
               </label>
               <select
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                style={{
+                  background: '#0d1117',
+                  border: '1px solid #30363d',
+                  color: '#c9d1d9',
+                  padding: '0.375rem 0.75rem',
+                  borderRadius: '6px',
+                  width: '100%',
+                  marginTop: '0.25rem',
+                  fontSize: '0.875rem'
+                }}
                 value={searchParams.get("resolved") || ""}
                 onChange={(e) => handleFilterChange("resolved", e.target.value)}
               >
@@ -83,67 +107,93 @@ export default function Errors() {
         </div>
 
         {/* Errors List */}
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: '6px', overflow: 'hidden' }}>
           {error && (
-            <div className="px-4 py-3 bg-red-50 border-b border-red-200">
-              <p className="text-sm text-red-800">Error: {error}</p>
+            <div style={{ padding: '0.75rem 1rem', background: '#3a1f1f', borderBottom: '1px solid #da3633' }}>
+              <p className="text-sm" style={{ color: '#f85149' }}>Error: {error}</p>
             </div>
           )}
 
           {errors.length === 0 ? (
-            <div className="px-4 py-8 text-center text-gray-500">
+            <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#8b949e' }}>
               No errors found
             </div>
           ) : (
-            <ul className="divide-y divide-gray-200">
+            <ul style={{ borderTop: 'none' }}>
               {errors.map((item: any) => (
-                <li key={item.id} className="px-4 py-4 hover:bg-gray-50">
+                <li
+                  key={item.id}
+                  style={{
+                    padding: '1rem',
+                    borderTop: '1px solid #30363d',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#0d1117'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         {item.errorType && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                            style={{ background: '#3a1f1f', color: '#f85149', border: '1px solid #da3633' }}
+                          >
                             {item.errorType}
                           </span>
                         )}
                         {item.resolved ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                            style={{ background: '#1b3c1b', color: '#3fb950', border: '1px solid #238636' }}
+                          >
                             Resolved
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                            style={{ background: '#3a1f1f', color: '#f85149', border: '1px solid #da3633' }}
+                          >
                             Unresolved
                           </span>
                         )}
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs" style={{ color: '#8b949e' }}>
                           {item.occurrenceCount} occurrence
                           {item.occurrenceCount !== 1 ? "s" : ""}
                         </span>
                       </div>
                     </div>
 
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-sm font-medium" style={{ color: '#c9d1d9' }}>
                       {item.message}
                     </p>
 
                     {item.url && (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs" style={{ color: '#8b949e' }}>
                         URL: {item.url}
                       </p>
                     )}
 
                     {item.stackTrace && (
                       <details className="mt-2">
-                        <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
+                        <summary
+                          className="text-xs cursor-pointer"
+                          style={{ color: '#58a6ff' }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = '#79c0ff'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = '#58a6ff'}
+                        >
                           View stack trace
                         </summary>
-                        <pre className="mt-2 text-xs bg-gray-900 text-gray-100 p-3 rounded overflow-x-auto">
+                        <pre
+                          className="mt-2 text-xs p-3 rounded overflow-x-auto"
+                          style={{ background: '#0d1117', color: '#c9d1d9', border: '1px solid #30363d' }}
+                        >
                           {item.stackTrace}
                         </pre>
                       </details>
                     )}
 
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs" style={{ color: '#8b949e' }}>
                       First seen: {new Date(item.firstSeen).toLocaleString()} •
                       Last seen: {new Date(item.lastSeen).toLocaleString()}
                     </div>

@@ -26,6 +26,7 @@ health.post('/', async (c) => {
 
     // Create health check entry
     await createHealthCheck(db, project.id, {
+      environment: data.environment,
       status: data.status,
       responseTime: data.responseTime,
       metadata: data.metadata ? JSON.stringify(data.metadata) : undefined,
@@ -44,7 +45,7 @@ health.post('/', async (c) => {
 });
 
 // GET /api/v1/health - Query health checks (admin only)
-health.get('/', async (c) => {
+export async function handleGetHealthChecks(c: any) {
   try {
     const query = c.req.query();
     const validation = healthQuerySchema.safeParse(query);
@@ -84,6 +85,8 @@ health.get('/', async (c) => {
       error: error.message || 'Internal server error',
     }, 500);
   }
-});
+}
+
+health.get('/', handleGetHealthChecks);
 
 export default health;

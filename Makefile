@@ -155,14 +155,14 @@ dev-widget: ## Build widget in watch mode
 .PHONY: db-generate
 db-generate: ## Generate Drizzle migrations from schema
 	@echo "$(CYAN)Generating database migrations...$(RESET)"
-	@cd workers/api && yarn drizzle-kit generate:sqlite
+	yarn db:generate
 	@echo "$(GREEN)✓ Migrations generated in workers/api/drizzle/migrations$(RESET)"
 
 .PHONY: db-migrate
-db-migrate: ## Apply migrations to D1 database
-	@echo "$(CYAN)Applying database migrations...$(RESET)"
-	@cd workers/api && yarn wrangler d1 execute project-monitoring --file=./drizzle/migrations/0000_initial.sql
-	@echo "$(GREEN)✓ Migrations applied$(RESET)"
+db-migrate: ## Apply Drizzle migrations to D1 database
+	@echo "$(CYAN)Applying migrations to D1...$(NC)"
+	yarn db:migrate
+	@echo "$(GREEN)Migrations applied$(NC)"
 
 .PHONY: db-update
 db-update: db-generate db-migrate ## Generate + apply migrations (recommended workflow)

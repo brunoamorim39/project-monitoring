@@ -5,6 +5,7 @@ import { z } from 'zod';
 // ============================================
 
 export const submitFeedbackSchema = z.object({
+  environment: z.enum(['preview', 'production']).default('production'),
   type: z.enum(['bug', 'feature', 'question']),
   title: z.string().min(1).max(500),
   description: z.string().max(10000).optional(),
@@ -23,6 +24,7 @@ export const submitFeedbackSchema = z.object({
 export const submitLogsSchema = z.object({
   logs: z.array(
     z.object({
+      environment: z.enum(['preview', 'production']).default('production'),
       level: z.enum(['info', 'warn', 'error', 'critical']),
       message: z.string().min(1).max(10000),
       timestamp: z.number().int().positive().optional(),
@@ -32,6 +34,7 @@ export const submitLogsSchema = z.object({
 });
 
 export const reportErrorSchema = z.object({
+  environment: z.enum(['preview', 'production']).default('production'),
   message: z.string().min(1).max(1000),
   errorType: z.string().max(200).optional(),
   stackTrace: z.string().max(50000).optional(),
@@ -40,12 +43,12 @@ export const reportErrorSchema = z.object({
   user: z.record(z.any()).optional(),
   metadata: z.object({
     version: z.string().max(100).optional(),
-    environment: z.string().max(100).optional(),
     customFields: z.record(z.any()).optional(),
   }).optional(),
 });
 
 export const submitHealthCheckSchema = z.object({
+  environment: z.enum(['preview', 'production']).default('production'),
   status: z.enum(['healthy', 'degraded', 'down']),
   responseTime: z.number().int().positive().optional(),
   metadata: z.object({
@@ -60,6 +63,7 @@ export const submitHealthCheckSchema = z.object({
 
 export const feedbackQuerySchema = z.object({
   project: z.string().optional(),
+  environment: z.enum(['preview', 'production']).optional(),
   status: z.enum(['open', 'in_progress', 'resolved', 'wont_fix']).optional(),
   type: z.enum(['bug', 'feature', 'question']).optional(),
   limit: z.coerce.number().int().positive().max(100).default(50),
@@ -68,14 +72,18 @@ export const feedbackQuerySchema = z.object({
 
 export const logsQuerySchema = z.object({
   project: z.string().optional(),
+  environment: z.enum(['preview', 'production']).optional(),
   level: z.enum(['info', 'warn', 'error', 'critical']).optional(),
+  search: z.string().max(500).optional(),
   limit: z.coerce.number().int().positive().max(1000).default(100),
+  offset: z.coerce.number().int().nonnegative().default(0),
   before: z.coerce.number().int().positive().optional(),
   after: z.coerce.number().int().positive().optional(),
 });
 
 export const errorsQuerySchema = z.object({
   project: z.string().optional(),
+  environment: z.enum(['preview', 'production']).optional(),
   resolved: z.coerce.boolean().optional(),
   limit: z.coerce.number().int().positive().max(100).default(50),
   offset: z.coerce.number().int().nonnegative().default(0),
@@ -83,6 +91,7 @@ export const errorsQuerySchema = z.object({
 
 export const healthQuerySchema = z.object({
   project: z.string().optional(),
+  environment: z.enum(['preview', 'production']).optional(),
   limit: z.coerce.number().int().positive().max(100).default(20),
 });
 

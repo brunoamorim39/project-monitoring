@@ -1,0 +1,21 @@
+# Project Monitoring Platform - Local Development Variables
+# SETUP: Copy to .dev.vars and fill in your values
+
+# ============================================================================
+# CLOUDFLARE INFRASTRUCTURE (For Drizzle Studio / migrations)
+# ============================================================================
+# Get from: https://dash.cloudflare.com/profile/api-tokens
+# Required for: db:migrate, db:studio commands
+# Create a token with "D1:Edit" permissions
+
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_DATABASE_ID=
+CLOUDFLARE_API_TOKEN=
+
+# ============================================================================
+# ADMIN CREDENTIALS (For dashboard authentication)
+# ============================================================================
+# Used by the dashboard to authenticate with the API
+
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your-secure-password

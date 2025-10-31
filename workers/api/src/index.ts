@@ -2,12 +2,13 @@ import { Hono } from 'hono';
 import { apiKeyAuth, basicAuth } from './middleware/auth';
 import { cors, simpleCors } from './middleware/cors';
 import { rateLimitMiddleware } from './middleware/rate-limit';
+import { getDb, getDashboardStats } from './lib/db';
 
 // Import routes
-import feedback from './routes/feedback';
-import logs from './routes/logs';
-import errors from './routes/errors';
-import health from './routes/health';
+import feedback, { handleGetFeedback } from './routes/feedback';
+import logs, { handleGetLogs } from './routes/logs';
+import errors, { handleGetErrors } from './routes/errors';
+import health, { handleGetHealthChecks } from './routes/health';
 import projects from './routes/projects';
 
 import type { Env } from './types';
@@ -53,46 +54,41 @@ admin.use('*', simpleCors);
 admin.use('*', basicAuth);
 
 // Mount query routes (GET requests for dashboard)
-admin.get('/feedback', async (c) => {
-  // Forward to feedback route GET handler
-  const feedbackRoute = feedback;
-  return feedbackRoute.request(c.req.raw, c.env);
-});
-
-admin.get('/logs', async (c) => {
-  const logsRoute = logs;
-  return logsRoute.request(c.req.raw, c.env);
-});
-
-admin.get('/errors', async (c) => {
-  const errorsRoute = errors;
-  return errorsRoute.request(c.req.raw, c.env);
-});
-
-admin.get('/health', async (c) => {
-  const healthRoute = health;
-  return healthRoute.request(c.req.raw, c.env);
-});
+// Call handlers directly to bypass rate limiting middleware
+admin.get('/feedback', handleGetFeedback);
+admin.get('/logs', handleGetLogs);
+admin.get('/errors', handleGetErrors);
+admin.get('/health', handleGetHealthChecks);
 
 // Mount projects route (admin only)
 admin.route('/projects', projects);
 
 // Mount stats endpoint
 admin.get('/stats', async (c) => {
-  const projectsRoute = projects;
-  // Create a modified request to hit the stats endpoint
-  const url = new URL(c.req.url);
-  url.pathname = '/api/v1/projects/dashboard/stats';
-  const modifiedReq = new Request(url, c.req.raw);
-  return projectsRoute.request(modifiedReq, c.env);
+  try {
+    const db = getDb(c.env.DB);
+    const stats = await getDashboardStats(db);
+
+    return c.json({
+      success: true,
+      data: stats,
+    });
+  } catch (error: any) {
+    console.error('Get stats error:', error);
+    return c.json({
+      success: false,
+      error: error.message || 'Internal server error',
+    }, 500);
+  }
 });
 
 // ============================================
 // Mount Routes
 // ============================================
 
-app.route('/api/v1', api);
+// Mount admin routes first (more specific path must come before general path)
 app.route('/api/v1/admin', admin);
+app.route('/api/v1', api);
 
 // ============================================
 // Error Handling

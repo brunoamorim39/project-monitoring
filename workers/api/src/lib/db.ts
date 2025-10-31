@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, desc, and, gte, lte, sql } from 'drizzle-orm';
+import { eq, desc, and, gte, lte, sql, like, or } from 'drizzle-orm';
 import * as schema from './schema';
 import type { D1Database } from '@cloudflare/workers-types';
 
@@ -75,6 +75,7 @@ export async function createFeedback(
   db: ReturnType<typeof getDb>,
   projectId: string,
   data: {
+    environment: string;
     type: string;
     title: string;
     description?: string;
@@ -89,6 +90,7 @@ export async function createFeedback(
   await db.insert(schema.feedback).values({
     id,
     projectId,
+    environment: data.environment,
     type: data.type,
     title: data.title,
     description: data.description,
@@ -142,6 +144,7 @@ export async function createLogs(
   db: ReturnType<typeof getDb>,
   projectId: string,
   logs: Array<{
+    environment: string;
     level: string;
     message: string;
     timestamp?: number;
@@ -151,6 +154,7 @@ export async function createLogs(
   const values = logs.map(log => ({
     id: generateId('log'),
     projectId,
+    environment: log.environment,
     level: log.level,
     message: log.message,
     context: log.context,
@@ -165,10 +169,13 @@ export async function getLogs(
   db: ReturnType<typeof getDb>,
   filters: {
     projectId?: string;
+    environment?: string;
     level?: string;
+    search?: string;
     before?: number;
     after?: number;
     limit?: number;
+    offset?: number;
   }
 ) {
   const conditions = [];
@@ -176,8 +183,20 @@ export async function getLogs(
   if (filters.projectId) {
     conditions.push(eq(schema.logs.projectId, filters.projectId));
   }
+  if (filters.environment) {
+    conditions.push(eq(schema.logs.environment, filters.environment));
+  }
   if (filters.level) {
     conditions.push(eq(schema.logs.level, filters.level));
+  }
+  if (filters.search) {
+    // Search in message and context (JSON string)
+    conditions.push(
+      or(
+        like(schema.logs.message, `%${filters.search}%`),
+        like(schema.logs.context, `%${filters.search}%`)
+      )
+    );
   }
   if (filters.before) {
     conditions.push(lte(schema.logs.timestamp, filters.before));
@@ -190,6 +209,7 @@ export async function getLogs(
     where: conditions.length > 0 ? and(...conditions) : undefined,
     orderBy: [desc(schema.logs.timestamp)],
     limit: filters.limit || 100,
+    offset: filters.offset || 0,
   });
 }
 
@@ -201,6 +221,7 @@ export async function createOrUpdateError(
   db: ReturnType<typeof getDb>,
   projectId: string,
   data: {
+    environment: string;
     message: string;
     stackTrace?: string;
     errorType?: string;
@@ -243,6 +264,7 @@ export async function createOrUpdateError(
     await db.insert(schema.errors).values({
       id: errorId,
       projectId,
+      environment: data.environment,
       message: data.message,
       stackTrace: data.stackTrace,
       errorType: data.errorType,
@@ -294,6 +316,7 @@ export async function createHealthCheck(
   db: ReturnType<typeof getDb>,
   projectId: string,
   data: {
+    environment: string;
     status: string;
     responseTime?: number;
     metadata?: string;
@@ -305,6 +328,7 @@ export async function createHealthCheck(
   await db.insert(schema.healthChecks).values({
     id,
     projectId,
+    environment: data.environment,
     status: data.status,
     responseTime: data.responseTime,
     metadata: data.metadata,

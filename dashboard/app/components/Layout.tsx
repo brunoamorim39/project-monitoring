@@ -17,14 +17,14 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ background: '#0d1117' }}>
       {/* Navigation */}
-      <nav className="bg-white shadow-sm border-b border-gray-200">
+      <nav style={{ background: '#161b22', borderBottom: '1px solid #30363d' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
-                <h1 className="text-xl font-bold text-gray-900">
+                <h1 className="text-xl font-bold" style={{ color: '#58a6ff' }}>
                   Project Monitor
                 </h1>
               </div>
@@ -35,11 +35,22 @@ export default function Layout({ children }: LayoutProps) {
                     <Link
                       key={item.name}
                       to={item.href}
-                      className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                        isActive
-                          ? "border-blue-500 text-gray-900"
-                          : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
-                      }`}
+                      className="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                      style={{
+                        borderColor: isActive ? '#58a6ff' : 'transparent',
+                        color: isActive ? '#58a6ff' : '#8b949e',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.color = '#c9d1d9';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.color = '#8b949e';
+                        }
+                      }}
                     >
                       {item.name}
                     </Link>
@@ -52,7 +63,7 @@ export default function Layout({ children }: LayoutProps) {
       </nav>
 
       {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style={{ color: '#c9d1d9' }}>
         {children}
       </main>
     </div>

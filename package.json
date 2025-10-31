@@ -1,0 +1,31 @@
+{
+  "name": "project-monitoring",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Centralized project monitoring and feedback platform on Cloudflare",
+  "packageManager": "yarn@4.10.3",
+  "workspaces": [
+    "workers/api",
+    "dashboard",
+    "widget",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "yarn workspace @project-monitoring/api dev",
+    "dev:dashboard": "yarn workspace @project-monitoring/dashboard dev",
+    "dev:widget": "yarn workspace @project-monitoring/widget dev",
+    "build": "yarn workspaces foreach -A run build",
+    "deploy:api": "yarn workspace @project-monitoring/api deploy",
+    "deploy:dashboard": "yarn workspace @project-monitoring/dashboard deploy",
+    "db:generate": "yarn workspace @project-monitoring/api db:generate",
+    "db:migrate": "yarn workspace @project-monitoring/api db:migrate"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,7 @@
+name = "project-monitoring"
+compatibility_date = "2024-01-15"
+pages_build_output_dir = "./build/client"
+
+[vars]
+API_URL = "https://your-worker-url.workers.dev" # Update with your Worker URL
+# Or use the local dev URL: "http://localhost:8787"

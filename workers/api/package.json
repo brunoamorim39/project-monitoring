@@ -1,0 +1,23 @@
+{
+  "name": "@project-monitoring/api",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:generate": "drizzle-kit generate:sqlite",
+    "db:migrate": "wrangler d1 execute project-monitoring --file=./drizzle/migrations/0000_initial.sql",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@project-monitoring/shared": "*",
+    "drizzle-orm": "^0.29.3",
+    "hono": "^3.12.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240117.0",
+    "drizzle-kit": "^0.20.11",
+    "typescript": "^5.3.3",
+    "wrangler": "^4.45.3"
+  }
+}

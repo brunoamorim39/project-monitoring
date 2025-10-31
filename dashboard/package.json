@@ -9,9 +9,10 @@
   },
   "scripts": {
     "dev": "remix vite:dev",
-    "build": "remix vite:build",
-    "preview": "wrangler pages dev ./build/client",
-    "deploy": "yarn build && wrangler pages deploy ./build/client",
+    "build": "remix vite:build && npm run build:pages",
+    "build:pages": "node scripts/build-pages.js",
+    "preview": "wrangler pages dev ./build/cloudflare",
+    "deploy": "yarn build && wrangler pages deploy ./build/cloudflare",
     "typecheck": "tsc"
   },
   "dependencies": {

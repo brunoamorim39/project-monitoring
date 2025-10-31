@@ -34,8 +34,8 @@ async function buildForPages() {
     const functionsDir = join(outputDir, 'functions');
     await mkdir(functionsDir, { recursive: true });
 
-    // Copy the Functions handler
-    const srcFunctionsHandler = join(rootDir, 'functions', '[[path]].ts');
+    // Copy the Functions handler from app/server-functions
+    const srcFunctionsHandler = join(rootDir, 'app', 'server-functions', '[[path]].ts');
     const destFunctionsHandler = join(functionsDir, '[[path]].ts');
     await cp(srcFunctionsHandler, destFunctionsHandler);
 

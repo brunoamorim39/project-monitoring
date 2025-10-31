@@ -8,7 +8,7 @@
     "build:debug": "esbuild src/index.ts --bundle --outfile=build/widget.js --sourcemap"
   },
   "devDependencies": {
-    "esbuild": "^0.19.12",
+    "esbuild": "^0.25.0",
     "typescript": "^5.3.3"
   }
 }

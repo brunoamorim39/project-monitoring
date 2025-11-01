@@ -9,4 +9,4 @@ bucket_name = "cloudflare-managed-2ff00513"
 preview_bucket_name = "cloudflare-managed-2ff00513"
 
 [vars]
-ADMIN_USERNAME = "admin"
+ACCESS_TOKEN = "logs_viewer_7a8f3e2c9b5d1f4a6e8c3b7d9f2a5e1c"

@@ -67,22 +67,6 @@ interface LoaderData {
 // ============================================
 
 /**
- * Basic authentication check
- */
-function checkAuth(request: Request, env: any): boolean {
-  const authHeader = request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Basic ')) {
-    return false;
-  }
-
-  const base64Credentials = authHeader.slice(6);
-  const credentials = atob(base64Credentials);
-  const [username, password] = credentials.split(':');
-
-  return username === env.ADMIN_USERNAME && password === env.ADMIN_PASSWORD;
-}
-
-/**
  * Get today's date path for R2 (YYYY/MM/DD)
  */
 function getTodayPath(): string {
@@ -197,7 +181,7 @@ function mapLogLevel(level: string): string {
 export async function loader({ request, context }: LoaderFunctionArgs) {
   const env = getEnv(context);
 
-  // In dev mode without R2 binding, return empty data (skip auth)
+  // In dev mode without R2 binding, return empty data
   if (!env.LOGS_BUCKET) {
     return json({
       requests: [],
@@ -207,15 +191,8 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     });
   }
 
-  // Check authentication (only when R2 is available)
-  if (!checkAuth(request, env)) {
-    return new Response('Unauthorized', {
-      status: 401,
-      headers: {
-        'WWW-Authenticate': 'Basic realm="Worker Log Viewer"',
-      },
-    });
-  }
+  // Auth is handled at the Pages Function level in functions/[[path]].ts
+  // If we reach here, the request is already authenticated
 
   try {
     const url = new URL(request.url);

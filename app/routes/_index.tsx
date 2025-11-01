@@ -311,7 +311,17 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     });
   } catch (error) {
     console.error('Error reading logs:', error);
-    throw new Response('Failed to read logs', { status: 500 });
+    // Return empty data with 500 status instead of throwing
+    // This allows the UI to render gracefully with an error message
+    return json(
+      {
+        requests: [],
+        workers: [],
+        total: 0,
+        date: getTodayPath(),
+      },
+      { status: 500 }
+    );
   }
 }
 

@@ -5,8 +5,8 @@ compatibility_flags = ["nodejs_compat"]
 
 [[r2_buckets]]
 binding = "LOGS_BUCKET"
-bucket_name = "worker-logs"
-preview_bucket_name = "worker-logs"
+bucket_name = "cloudflare-managed-2ff00513"
+preview_bucket_name = "cloudflare-managed-2ff00513"
 
 [vars]
 ADMIN_USERNAME = "admin"

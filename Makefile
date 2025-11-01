@@ -71,9 +71,10 @@ endif
 # ============================================
 
 .PHONY: dev
-dev: ## Start development server
-	@echo "$(CYAN)Starting development server...$(RESET)"
+dev: ## Start fast Vite dev server (UI only, no R2)
+	@echo "$(CYAN)Starting Remix dev server...$(RESET)"
 	@echo "$(GREEN)→ Dashboard:$(RESET) http://localhost:5173"
+	@echo "$(YELLOW)Note:$(RESET) Deploy to test R2 connection"
 	@echo ""
 	@yarn dev
 

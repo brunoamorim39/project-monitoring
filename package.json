@@ -12,7 +12,7 @@
     "dev": "remix vite:dev",
     "build": "remix vite:build",
     "preview": "wrangler pages dev ./build/client",
-    "deploy": "yarn build && wrangler pages deploy ./build/client",
+    "deploy": "yarn build && wrangler pages deploy ./build/client --project-name=project-monitoring",
     "typecheck": "tsc"
   },
   "dependencies": {

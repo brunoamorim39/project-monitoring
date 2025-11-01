@@ -1,6 +1,6 @@
 name = "project-monitoring"
 compatibility_date = "2024-09-23"
-pages_build_output_dir = "./build/cloudflare"
+pages_build_output_dir = "./build/client"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]

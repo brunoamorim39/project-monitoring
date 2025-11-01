@@ -12,9 +12,16 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 
   try {
     const env = getEnv(context);
+
+    if (!env.ADMIN_USERNAME || !env.ADMIN_PASSWORD) {
+      throw new Error('ADMIN_USERNAME and ADMIN_PASSWORD must be configured');
+    }
+
     const api = createServerAPI(
-      env.ADMIN_USERNAME || 'admin',
-      env.ADMIN_PASSWORD || 'totally-secure-password'
+      env.ADMIN_USERNAME,
+      env.ADMIN_PASSWORD,
+      request,
+      context
     );
     const response = await api.getFeedback({ project, status, type });
     const projects = await api.getProjects();

@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Read(//c/MyStuff/Business/FollowThru/github/followthru.io/**)"
+      "Read(//c/MyStuff/Business/FollowThru/github/followthru.io/**)",
+      "Read(//c/**)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

@@ -11,15 +11,16 @@ export const meta: MetaFunction = () => {
   ];
 };
 
-export async function loader({ context }: LoaderFunctionArgs) {
+export async function loader({ request, context }: LoaderFunctionArgs) {
   try {
     // Get environment variables using helper that handles both dev and production
     const env = getEnv(context);
 
-    const username = env.ADMIN_USERNAME || 'admin';
-    const password = env.ADMIN_PASSWORD || 'totally-secure-password';
+    if (!env.ADMIN_USERNAME || !env.ADMIN_PASSWORD) {
+      throw new Error('ADMIN_USERNAME and ADMIN_PASSWORD must be configured');
+    }
 
-    const api = createServerAPI(username, password);
+    const api = createServerAPI(env.ADMIN_USERNAME, env.ADMIN_PASSWORD, request, context);
     const stats = await api.getStats();
     const projects = await api.getProjects();
     return json({ stats: stats.data, projects: projects.data });

@@ -5,12 +5,19 @@ import Layout from "~/components/Layout";
 import { createServerAPI } from "~/lib/api";
 import { getEnv } from "~/utils/env.server";
 
-export async function loader({ context }: LoaderFunctionArgs) {
+export async function loader({ request, context }: LoaderFunctionArgs) {
   try {
     const env = getEnv(context);
+
+    if (!env.ADMIN_USERNAME || !env.ADMIN_PASSWORD) {
+      throw new Error('ADMIN_USERNAME and ADMIN_PASSWORD must be configured');
+    }
+
     const api = createServerAPI(
-      env.ADMIN_USERNAME || 'admin',
-      env.ADMIN_PASSWORD || 'totally-secure-password'
+      env.ADMIN_USERNAME,
+      env.ADMIN_PASSWORD,
+      request,
+      context
     );
     const response = await api.getProjects();
     return json({ projects: response.data });
@@ -26,9 +33,16 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
   try {
     const env = getEnv(context);
+
+    if (!env.ADMIN_USERNAME || !env.ADMIN_PASSWORD) {
+      throw new Error('ADMIN_USERNAME and ADMIN_PASSWORD must be configured');
+    }
+
     const api = createServerAPI(
-      env.ADMIN_USERNAME || 'admin',
-      env.ADMIN_PASSWORD || 'totally-secure-password'
+      env.ADMIN_USERNAME,
+      env.ADMIN_PASSWORD,
+      request,
+      context
     );
     const response = await api.createProject({ name, slug });
     return json({ success: true, project: response.data });

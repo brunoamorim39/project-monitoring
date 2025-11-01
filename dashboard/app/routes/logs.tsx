@@ -14,9 +14,16 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const offset = parseInt(url.searchParams.get("offset") || "0");
 
   const env = getEnv(context);
+
+  if (!env.ADMIN_USERNAME || !env.ADMIN_PASSWORD) {
+    throw new Error('ADMIN_USERNAME and ADMIN_PASSWORD must be configured');
+  }
+
   const api = createServerAPI(
-    env.ADMIN_USERNAME || 'admin',
-    env.ADMIN_PASSWORD || 'totally-secure-password'
+    env.ADMIN_USERNAME,
+    env.ADMIN_PASSWORD,
+    request,
+    context
   );
 
   const [logsResponse, projectsResponse] = await Promise.all([

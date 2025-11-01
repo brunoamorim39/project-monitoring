@@ -1,20 +1,24 @@
 // API client for communicating with the Worker API
-
-const API_BASE_URL = typeof window !== 'undefined'
-  ? window.ENV?.API_URL || 'http://localhost:8787'
-  : process.env.API_URL || 'http://localhost:8787';
+import { getWorkerAPIBaseURL } from './config/urls';
 
 interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean>;
   username?: string;
   password?: string;
+  baseURL?: string;
 }
 
 async function fetchAPI<T = any>(
   endpoint: string,
   options: FetchOptions = {}
 ): Promise<T> {
-  const { params, username: optUsername, password: optPassword, ...fetchOptions} = options;
+  const { params, username: optUsername, password: optPassword, baseURL, ...fetchOptions} = options;
+
+  // Determine API base URL
+  const API_BASE_URL = baseURL ||
+    (typeof window !== 'undefined'
+      ? (window as any).ENV?.API_URL || 'http://localhost:8787'
+      : 'http://localhost:8787');
 
   // Build URL with query params
   const url = new URL(`${API_BASE_URL}${endpoint}`);
@@ -62,26 +66,36 @@ async function fetchAPI<T = any>(
 // Helper for server-side loaders
 // ============================================
 
-export function createServerAPI(username: string, password: string) {
+export function createServerAPI(
+  username: string,
+  password: string,
+  request?: Request,
+  context?: any
+) {
+  // Get environment and determine base URL
+  const env = context?.env || context?.cloudflare?.env || {};
+  const baseURL = getWorkerAPIBaseURL(env, request);
+
   return {
-    getStats: () => fetchAPI('/api/v1/admin/stats', { username, password }),
-    getProjects: () => fetchAPI('/api/v1/admin/projects', { username, password }),
-    getProject: (slug: string) => fetchAPI(`/api/v1/admin/projects/${slug}`, { username, password }),
+    getStats: () => fetchAPI('/api/v1/admin/stats', { username, password, baseURL }),
+    getProjects: () => fetchAPI('/api/v1/admin/projects', { username, password, baseURL }),
+    getProject: (slug: string) => fetchAPI(`/api/v1/admin/projects/${slug}`, { username, password, baseURL }),
     createProject: (data: any) =>
       fetchAPI('/api/v1/admin/projects', {
         method: 'POST',
         body: JSON.stringify(data),
         username,
         password,
+        baseURL,
       }),
     getFeedback: (params?: Record<string, any>) =>
-      fetchAPI('/api/v1/admin/feedback', { params, username, password }),
+      fetchAPI('/api/v1/admin/feedback', { params, username, password, baseURL }),
     getLogs: (params?: Record<string, any>) =>
-      fetchAPI('/api/v1/admin/logs', { params, username, password }),
+      fetchAPI('/api/v1/admin/logs', { params, username, password, baseURL }),
     getErrors: (params?: Record<string, any>) =>
-      fetchAPI('/api/v1/admin/errors', { params, username, password }),
+      fetchAPI('/api/v1/admin/errors', { params, username, password, baseURL }),
     getHealthChecks: (params?: Record<string, any>) =>
-      fetchAPI('/api/v1/admin/health', { params, username, password }),
+      fetchAPI('/api/v1/admin/health', { params, username, password, baseURL }),
   };
 }
 

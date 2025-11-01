@@ -331,6 +331,15 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 
 export default function Logs() {
   const initialData = useLoaderData<LoaderData>();
+
+  // Defensive checks for SSR - ensure data is always defined
+  const safeData = {
+    requests: initialData?.requests || [],
+    workers: initialData?.workers || [],
+    total: initialData?.total || 0,
+    date: initialData?.date || getTodayPath(),
+  };
+
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchInput, setSearchInput] = useState(searchParams.get("search") || "");
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -342,13 +351,13 @@ export default function Logs() {
   // Auto-expand exceptions on mount
   useEffect(() => {
     const exceptionsToExpand = new Set<string>();
-    initialData.requests.forEach((req: any) => {
+    safeData.requests.forEach((req: any) => {
       if (req.logs.some((log: any) => log.hasException)) {
         exceptionsToExpand.add(req.id);
       }
     });
     setExpandedRequests(exceptionsToExpand);
-  }, [initialData.requests]);
+  }, [safeData.requests]);
 
   // Auto-refresh interval (30 seconds)
   useEffect(() => {
@@ -861,8 +870,8 @@ export default function Logs() {
         <div className="log-header">
           <h1>Worker Logs</h1>
           <div className="log-header-info">
-            <span>{initialData.requests.length} requests loaded</span>
-            <span>Total: {initialData.total}</span>
+            <span>{safeData.requests.length} requests loaded</span>
+            <span>Total: {safeData.total}</span>
             {autoRefresh && <span>Auto-refresh: ON (last: {lastRefresh.toLocaleTimeString()})</span>}
             <span className="shortcuts-hint">
               Shortcuts: <kbd>/</kbd> search · <kbd>e</kbd> errors · <kbd>r</kbd> refresh · <kbd>c</kbd> clear
@@ -894,7 +903,7 @@ export default function Logs() {
 
           <input
             type="date"
-            value={initialData.date.replace(/\//g, "-")}
+            value={safeData.date.replace(/\//g, "-")}
             onChange={(e) => {
               const [year, month, day] = e.target.value.split("-");
               handleFilterChange("date", `${year}/${month}/${day}`);
@@ -903,7 +912,7 @@ export default function Logs() {
 
           <select value={searchParams.get("worker") || ""} onChange={(e) => handleFilterChange("worker", e.target.value)}>
             <option value="">All Workers</option>
-            {initialData.workers.map((worker: string) => (
+            {safeData.workers.map((worker: string) => (
               <option key={worker} value={worker}>
                 {worker}
               </option>
@@ -944,7 +953,7 @@ export default function Logs() {
         </div>
 
         <div className="log-container">
-          {initialData.requests.length === 0 ? (
+          {safeData.requests.length === 0 ? (
             <div className="empty-state">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -954,7 +963,7 @@ export default function Logs() {
             </div>
           ) : (
             <>
-              {initialData.requests.map((req: any) => {
+              {safeData.requests.map((req: any) => {
                 const isExpanded = expandedRequests.has(req.id);
                 const hasException = req.logs.some((log: any) => log.hasException);
 

@@ -1,259 +1,366 @@
-# Setup Guide
+# Project Monitoring - Setup Guide
 
-Follow these steps to set up and deploy your Project Monitoring Platform.
+Simple R2-based log viewer for Cloudflare Worker logs.
 
-## Prerequisites
+## Overview
 
-- Node.js 18 or higher
-- Yarn (v1.22+)
-- A Cloudflare account (free tier works)
-- Wrangler CLI installed globally
+This tool provides a clean, GitHub-style dark theme interface to view logs from your Cloudflare Workers. It uses Cloudflare's native Logpush feature to send logs to an R2 bucket, then displays them in a searchable dashboard.
 
-```bash
-yarn install -g wrangler
-```
+**Cost:** ~$0-5/month (R2 storage + operations, mostly free tier)
 
-## Step-by-Step Setup
+---
 
-### 1. Install Dependencies
+## Step 1: Create R2 Bucket
+
+First, create an R2 bucket to store your Worker logs:
 
 ```bash
-yarn install
+npx wrangler r2 bucket create worker-logs
 ```
 
-This will install dependencies for all workspaces.
+This creates a bucket named `worker-logs` that will receive all your Worker logs.
 
-### 2. Login to Cloudflare
+---
+
+## Step 2: Enable Logpush on Your Workers
+
+For each Worker you want to monitor, enable Logpush:
+
+### Example: FollowThru Backend
 
 ```bash
-wrangler login
+npx wrangler logpush create \
+  --destination="r2://worker-logs/logs" \
+  --dataset="workers_trace_events" \
+  --filter='ScriptName == "followthru-backend"' \
+  --output-options="fields=EventTimestampMs,Outcome,ScriptName,ScriptTags,Logs,Exceptions,Request,Response"
 ```
 
-Follow the browser prompts to authenticate.
-
-### 3. Create D1 Database
+### Example: CarScout API
 
 ```bash
-cd workers/api
-wrangler d1 create project-monitoring
+npx wrangler logpush create \
+  --destination="r2://worker-logs/logs" \
+  --dataset="workers_trace_events" \
+  --filter='ScriptName == "carscout-api"' \
+  --output-options="fields=EventTimestampMs,Outcome,ScriptName,ScriptTags,Logs,Exceptions,Request,Response"
 ```
 
-Copy the output that looks like:
+### Notes:
+- Replace `"followthru-backend"` with your actual Worker name
+- The `ScriptName` filter ensures only that specific Worker's logs are sent
+- Logs are batched and sent every 30 seconds to 5 minutes
+- Files are organized in R2 as: `logs/YYYY/MM/DD/HH/timestamp_random.log.gz`
 
-```
-[[d1_databases]]
-binding = "DB"
-database_name = "project-monitoring"
-database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-```
-
-Update `workers/api/wrangler.toml` with your database ID.
-
-### 4. Create KV Namespace
+### To Find Your Worker Names:
 
 ```bash
-wrangler kv:namespace create project-monitoring-rate-limit-kv
+npx wrangler deployments list
 ```
 
-Copy the namespace ID and update `workers/api/wrangler.toml`:
+---
+
+## Step 3: Configure Dashboard
+
+### Set Admin Password
+
+The dashboard uses basic authentication. Set your admin password as a secret:
+
+```bash
+cd dashboard
+npx wrangler pages secret put ADMIN_PASSWORD
+# Enter your password when prompted
+```
+
+The username is `admin` (configured in `wrangler.toml`).
+
+### Verify R2 Binding
+
+Check that `dashboard/wrangler.toml` has the R2 bucket binding:
 
 ```toml
-[[kv_namespaces]]
-binding = "RATE_LIMIT_KV"
-id = "your-kv-id-here"
+[[r2_buckets]]
+binding = "LOGS_BUCKET"
+bucket_name = "worker-logs"
+preview_bucket_name = "worker-logs"
 ```
 
-### 5. Run Database Migrations
+This should already be configured.
+
+---
+
+## Step 4: Deploy Dashboard
+
+Build and deploy the dashboard to Cloudflare Pages:
 
 ```bash
-cd workers/api
-wrangler d1 execute project-monitoring --file=./drizzle/migrations/0000_initial.sql
+cd dashboard
+npm install
+npm run build
+npx wrangler pages deploy
 ```
 
-You should see "Success" message.
+### First-Time Setup
 
-### 6. Set Production Secrets
+If this is your first deployment:
 
-```bash
-# From workers/api directory
-wrangler secret put ADMIN_USERNAME
-# Enter: admin (or your preferred username)
+1. Follow the prompts to create a new Pages project
+2. Name it `project-monitoring` (or whatever you prefer)
+3. The deployment will give you a URL like: `https://project-monitoring-xxx.pages.dev`
 
-wrangler secret put ADMIN_PASSWORD
-# Enter: your-secure-password (choose a strong password)
+### Subsequent Deployments
+
+Just run `npx wrangler pages deploy` to update.
+
+---
+
+## Step 5: Access Your Logs
+
+1. Visit your Pages URL: `https://project-monitoring-xxx.pages.dev`
+2. Click "Logs" in the navigation
+3. Log in with:
+   - Username: `admin`
+   - Password: (what you set in Step 3)
+
+4. Use the filters:
+   - **Date picker**: Select which date's logs to view
+   - **Worker filter**: Filter by specific Worker name
+   - **Level filter**: Filter by log level (info, warn, error)
+   - **Search**: Search within log messages
+   - **Auto-refresh**: Toggle 30-second auto-refresh
+
+---
+
+## How It Works
+
+```
+Your Workers
+  │
+  │ (console.log, errors, etc.)
+  ├──> Cloudflare Logpush
+  │         │
+  │         │ (every 30s-5min, batched)
+  │         │
+  │         ├──> R2 Bucket (gzip NDJSON files)
+  │                   │
+  │                   │
+  │                   ├──> Pages Function (decompress, parse, filter)
+  │                            │
+  │                            │
+  │                            ├──> Dashboard UI (display, search)
 ```
 
-### 7. Set Local Development Environment
+**Log Flow:**
+1. Your Worker runs and calls `console.log()` or throws errors
+2. Cloudflare Logpush batches these logs
+3. Every 30 seconds to 5 minutes, logs are compressed (gzip) and written to R2
+4. When you visit the dashboard, it reads from R2, decompresses, and displays
+5. Logs are organized by date: `logs/YYYY/MM/DD/`
 
-```bash
-# From workers/api directory
-cp .dev.vars.example .dev.vars
-```
+---
 
-Edit `.dev.vars` and set your local admin credentials:
+## Tagging Workers by Environment
 
-```env
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your-local-password
-```
+To see "preview" vs "production" tags in the log viewer, tag your Workers:
 
-### 8. Test Locally
-
-Start the API Worker:
-
-```bash
-# From root directory
-make dev-api
-```
-
-In another terminal, start the dashboard:
-
-```bash
-make dev-dashboard
-```
-
-Open http://localhost:5173 in your browser.
-
-### 9. Deploy to Production
-
-Deploy the API Worker:
-
-```bash
-make deploy-api
-```
-
-Note the Worker URL (e.g., `https://project-monitoring.your-subdomain.workers.dev`)
-
-Update `dashboard/wrangler.toml` with your Worker URL:
+### Option 1: In wrangler.toml
 
 ```toml
-[vars]
-API_URL = "https://project-monitoring.your-subdomain.workers.dev"
+# Production worker
+[env.production]
+workers_dev = false
+tags = ["environment:production"]
+
+# Preview worker
+[env.preview]
+workers_dev = true
+tags = ["environment:preview"]
 ```
 
-Also update `dashboard/app/lib/api.ts` line 3 with your Worker URL.
-
-Deploy the dashboard:
+### Option 2: Via CLI
 
 ```bash
-make deploy-dashboard
+# Tag production worker
+npx wrangler deploy --env production --tag environment:production
+
+# Tag preview worker
+npx wrangler deploy --env preview --tag environment:preview
 ```
 
-Note the Pages URL (e.g., `https://project-monitoring.pages.dev`)
+Tags will appear as badges in the log viewer.
 
-### 10. Build and Host Widget
+---
 
-```bash
-cd widget
-make build-widget
+## Usage Tips
+
+### Viewing Recent Logs
+
+The date picker defaults to today. Logs appear 30s-5min after they're generated (Logpush batch delay).
+
+### Searching Logs
+
+Use the search box to filter by message content. Search is case-insensitive and searches across all loaded logs.
+
+### Worker Console Output
+
+All `console.log()`, `console.warn()`, `console.error()` calls in your Worker appear as separate log entries.
+
+Example Worker code:
+```typescript
+export default {
+  async fetch(request, env) {
+    console.log('Request received:', request.url);
+
+    try {
+      const result = await handleRequest(request);
+      console.log('Request completed successfully');
+      return result;
+    } catch (error) {
+      console.error('Request failed:', error.message);
+      throw error;
+    }
+  }
+}
 ```
 
-The built widget will be in `widget/build/widget.js`.
+All three console calls will appear as separate entries in the log viewer.
 
-**Option A: Host on Cloudflare Pages**
+### Understanding Log Levels
 
-Create a new Pages project and upload the `widget/build` directory.
+The viewer maps Cloudflare's log levels:
+- `console.log()` → **INFO** (blue)
+- `console.warn()` → **WARN** (orange)
+- `console.error()` → **ERROR** (red)
+- Uncaught exceptions → **ERROR** (red, with stack trace)
 
-**Option B: Include in Dashboard Assets**
-
-Copy `widget.js` to `dashboard/public/widget.js` and it will be served from your dashboard URL.
-
-### 11. Create Your First Project
-
-1. Open your dashboard URL
-2. Navigate to "Projects"
-3. Click "New Project"
-4. Enter name: "My First Project"
-5. Enter slug: "my-first-project"
-6. Click "Create Project"
-7. Copy and save the API key shown
-
-### 12. Test Integration
-
-Add the widget to any HTML page:
-
-```html
-<script src="https://your-dashboard-url.pages.dev/widget.js"></script>
-<script>
-  MonitorWidget.init({
-    apiKey: 'your_project_api_key',
-    apiUrl: 'https://your-worker-url.workers.dev',
-  });
-</script>
-```
-
-Or test with curl:
-
-```bash
-curl -X POST https://your-worker-url.workers.dev/api/v1/logs \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: your_project_api_key" \
-  -d '{
-    "logs": [{
-      "level": "info",
-      "message": "Test log from setup"
-    }]
-  }'
-```
-
-## Verification Checklist
-
-- [ ] D1 database created and ID updated in wrangler.toml
-- [ ] KV namespace created and ID updated in wrangler.toml
-- [ ] Database migrations ran successfully
-- [ ] Admin credentials set via `wrangler secret put`
-- [ ] Local .dev.vars file created for development
-- [ ] API Worker deployed and URL noted
-- [ ] Dashboard wrangler.toml updated with Worker URL
-- [ ] Dashboard app/lib/api.ts updated with Worker URL
-- [ ] Dashboard deployed and URL noted
-- [ ] Widget built successfully
-- [ ] First project created in dashboard
-- [ ] API key saved securely
-- [ ] Test request successful
+---
 
 ## Troubleshooting
 
-### "No such D1 database"
+### No logs appearing?
 
-Make sure you ran the database creation command and updated the database ID in `wrangler.toml`.
+1. **Check Logpush is configured:**
+   ```bash
+   npx wrangler logpush list
+   ```
+   You should see your configured Logpush jobs.
 
-### "KV namespace not found"
+2. **Verify R2 bucket has logs:**
+   ```bash
+   npx wrangler r2 object list worker-logs --prefix logs/
+   ```
+   You should see `.log.gz` files.
 
-Create the KV namespace with `wrangler kv:namespace create RATE_LIMIT_KV` and update the ID in `wrangler.toml`.
+3. **Check Worker name filter:**
+   Make sure the `ScriptName` in your Logpush filter matches your actual Worker name.
 
-### "Unauthorized" when accessing dashboard
+4. **Wait for batch:**
+   Logs are batched every 30s-5min. Wait a few minutes after triggering activity.
 
-Check that you set the admin credentials with `wrangler secret put` and that you're using the correct username/password.
+### Dashboard shows empty logs?
 
-### Migration fails
+1. **Check date:**
+   Make sure you're viewing the correct date. Logs are UTC-based.
 
-If the migration fails, you may need to drop the database and start over:
+2. **Check authentication:**
+   Ensure you're logged in (username: `admin`, password: what you set).
+
+3. **Check R2 binding:**
+   Verify `wrangler.toml` has the correct R2 bucket binding.
+
+### Logs are old/stale?
+
+Logs may take 30s-5min to appear due to Logpush batching. This is normal. Enable auto-refresh to check for new logs every 30 seconds.
+
+---
+
+## Cost Estimates
+
+### R2 Storage
+- **$0.015/GB/month**
+- Compressed logs are ~1-5MB per 1000 requests
+- Example: 100k requests/day = ~3-15MB/day = ~90-450MB/month = **~$0.02/month**
+
+### R2 Operations
+- **Class A (write):** $4.50/million operations
+- **Class B (read):** $0.36/million operations
+- Logpush writes: ~2,000 per day (batching) = **~$0.01/month**
+- Dashboard reads: ~100 per day = **~$0.00/month**
+
+### Cloudflare Pages
+- **Free** (included in free tier)
+- Pages Functions: 100k requests/day free
+
+### Total Estimated Cost
+**~$0.03-0.50/month** for typical usage (1-10M requests/month)
+
+Compare to external tools:
+- Datadog: $15-30/month minimum
+- Logtail: $30-60/month
+- Sentry: $50-100/month
+
+---
+
+## Maintenance
+
+### Log Retention
+
+Logs are kept indefinitely in R2 by default. To save costs, you can set up a lifecycle policy:
 
 ```bash
-wrangler d1 execute project-monitoring --command="DROP TABLE IF EXISTS projects; DROP TABLE IF EXISTS feedback; DROP TABLE IF EXISTS logs; DROP TABLE IF EXISTS errors; DROP TABLE IF EXISTS health_checks; DROP TABLE IF EXISTS notes;"
+# Delete logs older than 30 days (example)
+# This reduces storage costs for old logs
 ```
 
-Then run the migration again.
+You can configure this in the Cloudflare dashboard:
+1. Go to R2 → `worker-logs` bucket
+2. Settings → Lifecycle Rules
+3. Add rule: Delete objects after 30 days with prefix `logs/`
 
-### Widget not loading
+### Monitoring Costs
 
-Check the browser console for errors. Common issues:
-- Wrong API URL
-- CORS not configured properly
-- Invalid API key
+Check your R2 usage:
+1. Cloudflare Dashboard → R2
+2. Click `worker-logs`
+3. View storage size and operations
+
+Typical usage: <1GB storage, <10k operations/month = ~$0.03/month
+
+---
 
 ## Next Steps
 
-- Read the [README.md](README.md) for usage examples
-- Explore the dashboard features
-- Integrate monitoring into your projects
-- Set up health check crons for your services
+Once you have logs flowing:
 
-## Need Help?
+1. **Monitor errors:** Filter by level "error" to see exceptions
+2. **Track patterns:** Use search to find specific error messages
+3. **Compare environments:** Filter by environment tag to compare preview vs production
+4. **Debug issues:** Use the date picker to view logs from when an issue occurred
 
-Open an issue on GitHub with:
-- Description of the problem
-- Steps you've taken
-- Error messages (if any)
-- Your environment (Node version, OS, etc.)
+For feature requests or feedback, use GitHub Issues in your FollowThru project.
+
+---
+
+## Uninstalling
+
+To remove the monitoring platform:
+
+1. **Delete Logpush jobs:**
+   ```bash
+   npx wrangler logpush list
+   npx wrangler logpush delete <job-id>
+   ```
+
+2. **Delete R2 bucket:**
+   ```bash
+   npx wrangler r2 bucket delete worker-logs
+   ```
+
+3. **Delete Pages deployment:**
+   ```bash
+   npx wrangler pages project delete project-monitoring
+   ```
+
+---
+
+**That's it!** You now have a simple, cost-effective log viewer for your Cloudflare Workers.

@@ -1,562 +1,244 @@
-# Project Monitoring Platform
+# Worker Log Viewer
 
-A lightweight, self-hosted monitoring and feedback platform built on Cloudflare's stack. Monitor logs, errors, feedback, and system health across all your projects from one centralized dashboard.
+Simple, beautiful log viewer for Cloudflare Workers using R2 storage and Logpush.
+
+## What is This?
+
+A minimal dashboard to view logs from your Cloudflare Workers. Uses Cloudflare's native **Logpush** feature to send logs to R2, then displays them in a GitHub-style dark theme interface.
+
+**No complex setup. No database. No SDK to integrate. Just pure Cloudflare.**
 
 ## Features
 
-- **Multi-project support**: Monitor all your projects from a single instance
-- **Unified observability**: Logs, errors, feedback, and health checks in one place
-- **Simple integration**: Add monitoring to any project with just a few lines of code
-- **Embeddable widget**: Drop-in feedback widget for web applications
-- **Real-time dashboard**: View and manage all telemetry data from a modern web UI
-- **Edge-native**: Built on Cloudflare Workers, D1, and Pages for global performance
-- **Self-hosted**: Full control over your data with no external SaaS dependencies
+- ✅ **Automatic log collection** via Cloudflare Logpush
+- ✅ **GitHub-style dark theme** interface
+- ✅ **Date picker** to browse historical logs
+- ✅ **Worker filtering** to focus on specific services
+- ✅ **Log level filtering** (info, warn, error)
+- ✅ **Full-text search** across log messages
+- ✅ **Environment tags** (preview vs production)
+- ✅ **Auto-refresh** (30-second intervals)
+- ✅ **Expandable log entries** with full context
+
+## Cost
+
+**~$0-5/month** for typical usage:
+- R2 storage: ~$0.02/month (compressed logs)
+- R2 operations: ~$0.01/month (batched writes)
+- Cloudflare Pages: Free
+
+Compare to:
+- Datadog: $15-30/month
+- Logtail: $30-60/month
+- Sentry: $50-100/month
 
 ## Architecture
 
-- **API**: Cloudflare Worker with Hono framework
-- **Database**: Cloudflare D1 (SQLite at edge)
-- **Dashboard**: Remix on Cloudflare Pages
-- **Widget**: Vanilla JavaScript (<10KB)
-- **Storage**: Cloudflare KV for rate limiting
+```
+Workers → Logpush → R2 → Pages Function → Dashboard UI
+```
+
+- **Cloudflare Logpush**: Automatically sends Worker logs to R2 (every 30s-5min, batched)
+- **R2 Bucket**: Stores compressed logs (gzip NDJSON format)
+- **Pages Function**: Reads, decompresses, and parses logs from R2
+- **Dashboard UI**: Clean, searchable interface with filters
+
+**No database. No complex API. No SDK integration required.**
 
 ## Quick Start
 
-### Prerequisites
-
-- Node.js 18+
-- npm or pnpm
-- Cloudflare account
-- Wrangler CLI (`yarn install -g wrangler`)
-
-### Using the Makefile (Recommended)
-
-This project includes a convenient Makefile for common tasks:
+### 1. Create R2 Bucket
 
 ```bash
-# See all available commands
-make help
-
-# Initial setup (install deps + create .dev.vars)
-make setup
-
-# Create Cloudflare resources
-make cf-create-all
-
-# Run database migrations
-make db-migrate
-
-# Start development servers (API + Dashboard concurrently)
-make dev
-
-# Deploy to production
-make deploy-prod
+npx wrangler r2 bucket create worker-logs
 ```
 
-**Common Makefile Commands:**
-- `make dev` - Start API Worker and Dashboard together
-- `make db-update` - Generate and apply database migrations
-- `make db-studio` - Open Drizzle Studio for visual DB exploration
-- `make build` - Build all packages
-- `make deploy-api` - Deploy API Worker to production
-- `make clean` - Remove build artifacts
-
-For the complete list of commands, run `make help`.
-
-### Manual Installation (Alternative)
-
-1. **Clone the repository**
+### 2. Enable Logpush on Your Workers
 
 ```bash
-git clone <your-repo-url>
-cd project-monitoring
+npx wrangler logpush create \
+  --destination="r2://worker-logs/logs" \
+  --dataset="workers_trace_events" \
+  --filter='ScriptName == "your-worker-name"' \
+  --output-options="fields=EventTimestampMs,Outcome,ScriptName,ScriptTags,Logs,Exceptions,Request,Response"
 ```
 
-2. **Install dependencies**
-
-```bash
-yarn install
-```
-
-3. **Create Cloudflare D1 Database**
-
-```bash
-cd workers/api
-wrangler d1 create project-monitoring
-```
-
-Copy the database ID and update `workers/api/wrangler.toml`:
-
-```toml
-[[d1_databases]]
-binding = "DB"
-database_name = "project-monitoring"
-database_id = "your-database-id-here"
-```
-
-4. **Create KV Namespace for Rate Limiting**
-
-```bash
-wrangler kv:namespace create project-monitoring-rate-limit-kv
-```
-
-Update `workers/api/wrangler.toml` with the KV namespace ID.
-
-5. **Run Database Migrations**
-
-```bash
-make db-migrate
-```
-
-6. **Set up environment variables**
-
-Create `workers/api/.dev.vars`:
-
-```env
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your-secure-password
-```
-
-7. **Start development servers**
-
-```bash
-# Terminal 1: Start API Worker
-make dev-api
-
-# Terminal 2: Start Dashboard
-make dev-dashboard
-
-# Terminal 3: Build widget (optional)
-make dev-widget
-```
-
-8. **Create your first project**
-
-- Open the dashboard at `http://localhost:5173`
-- Navigate to "Projects"
-- Click "New Project"
-- Enter project name and slug
-- Save the API key shown after creation
-
-## Deployment
-
-### Deploy Worker API
-
-```bash
-cd workers/api
-make deploy
-```
-
-Note the Worker URL (e.g., `https://project-monitoring.your-subdomain.workers.dev`)
-
-### Deploy Dashboard
+### 3. Deploy Dashboard
 
 ```bash
 cd dashboard
-
-# Update wrangler.toml with your Worker URL
-# Update app/lib/api.ts with Worker URL
-
-make deploy
+npm install
+npm run build
+npx wrangler pages deploy
 ```
 
-### Build & Host Widget
+### 4. Set Admin Password
 
 ```bash
-cd widget
-make build
+cd dashboard
+npx wrangler pages secret put ADMIN_PASSWORD
 ```
 
-Upload `build/widget.js` to Cloudflare Pages or your CDN.
+### 5. Access Your Logs
+
+Visit your Pages URL and log in with:
+- Username: `admin`
+- Password: (what you just set)
+
+**Full setup guide:** [SETUP.md](SETUP.md)
+
+## Screenshots
+
+### Log Viewer Interface
+- Date picker to select logs by date
+- Worker filter dropdown
+- Log level filtering (info, warn, error)
+- Search box for full-text search
+- Auto-refresh toggle
+
+### Log Entry Details
+- Click any log to expand and see full context
+- Request/response data included
+- Stack traces for errors
+- Timestamps and metadata
+
+## How It Works
+
+1. Your Worker runs and calls `console.log()`, `console.warn()`, `console.error()`
+2. Cloudflare Logpush batches these logs every 30s-5min
+3. Logs are compressed (gzip) and written to R2 as NDJSON files
+4. Dashboard reads from R2, decompresses, parses, and displays
+5. Logs organized by date: `logs/YYYY/MM/DD/HH/`
 
 ## Usage
 
-### 1. Embeddable Feedback Widget
+### Viewing Logs
 
-Add to any HTML page:
+1. Select a date (defaults to today)
+2. Optionally filter by worker name
+3. Optionally filter by log level
+4. Optionally search for specific text
+5. Click any log entry to expand and see details
 
-```html
-<script src="https://your-cdn.com/widget.js"></script>
-<script>
-  MonitorWidget.init({
-    apiKey: 'your_project_api_key',
-    apiUrl: 'https://your-worker-url.workers.dev',
-    position: 'bottom-right', // 'bottom-left' | 'top-right' | 'top-left'
-  });
-</script>
-```
+### Worker Code
 
-### 2. Submit Logs
-
-**JavaScript/TypeScript:**
-
-```typescript
-const API_KEY = 'your_project_api_key';
-const API_URL = 'https://your-worker-url.workers.dev';
-
-async function sendLog(level: 'info' | 'warn' | 'error' | 'critical', message: string, context?: any) {
-  await fetch(`${API_URL}/api/v1/logs`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': API_KEY,
-    },
-    body: JSON.stringify({
-      logs: [{
-        level,
-        message,
-        timestamp: Date.now(),
-        context,
-      }],
-    }),
-  });
-}
-
-// Usage
-await sendLog('info', 'User logged in', { userId: '123', email: 'user@example.com' });
-await sendLog('error', 'Payment failed', { orderId: 'abc', amount: 99.99 });
-```
-
-**Batch Logging (up to 100 logs per request):**
-
-```typescript
-await fetch(`${API_URL}/api/v1/logs`, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'X-API-Key': API_KEY,
-  },
-  body: JSON.stringify({
-    logs: [
-      { level: 'info', message: 'Request started', context: { requestId: 'req_1' } },
-      { level: 'info', message: 'Database query executed', context: { requestId: 'req_1', duration: 45 } },
-      { level: 'info', message: 'Request completed', context: { requestId: 'req_1', statusCode: 200 } },
-    ],
-  }),
-});
-```
-
-### 3. Report Errors
-
-**JavaScript/TypeScript:**
-
-```typescript
-async function reportError(error: Error, user?: any) {
-  await fetch(`${API_URL}/api/v1/errors`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': API_KEY,
-    },
-    body: JSON.stringify({
-      message: error.message,
-      errorType: error.name,
-      stackTrace: error.stack,
-      url: window.location.href,
-      userAgent: navigator.userAgent,
-      user: user ? { id: user.id, email: user.email } : undefined,
-      metadata: {
-        version: '1.0.0',
-        environment: process.env.NODE_ENV,
-      },
-    }),
-  });
-}
-
-// Usage with global error handler
-window.addEventListener('error', (event) => {
-  reportError(event.error);
-});
-
-// Usage in try-catch
-try {
-  await riskyOperation();
-} catch (error) {
-  await reportError(error as Error, currentUser);
-  throw error; // Re-throw if needed
-}
-```
-
-**React Error Boundary:**
-
-```tsx
-import { Component, ErrorInfo, ReactNode } from 'react';
-
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
-  constructor(props: any) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    reportError(error, { componentStack: errorInfo.componentStack });
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return <h1>Something went wrong.</h1>;
-    }
-    return this.props.children;
-  }
-}
-
-export default ErrorBoundary;
-```
-
-### 4. Health Checks
-
-**Cloudflare Worker Cron:**
+No changes needed! Just use console methods normally:
 
 ```typescript
 export default {
-  async scheduled(event: ScheduledEvent, env: Env) {
-    const startTime = Date.now();
+  async fetch(request, env) {
+    console.log('Request received:', request.url);
 
     try {
-      // Check services
-      await env.DB.prepare('SELECT 1').first();
-      const dbOk = true;
-
-      const responseTime = Date.now() - startTime;
-
-      await fetch('https://your-worker-url.workers.dev/api/v1/health', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': env.MONITOR_API_KEY,
-        },
-        body: JSON.stringify({
-          status: 'healthy',
-          responseTime,
-          metadata: {
-            services: {
-              database: 'ok',
-            },
-          },
-        }),
-      });
+      const result = await handleRequest(request);
+      console.log('Request completed successfully');
+      return result;
     } catch (error) {
-      await fetch('https://your-worker-url.workers.dev/api/v1/health', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': env.MONITOR_API_KEY,
-        },
-        body: JSON.stringify({
-          status: 'down',
-          metadata: { error: error.message },
-        }),
-      });
+      console.error('Request failed:', error.message);
+      throw error;
     }
   }
-};
+}
 ```
 
-Add to `wrangler.toml`:
+All console output automatically appears in the log viewer.
+
+### Environment Tagging
+
+To see "preview" vs "production" badges, tag your Workers:
 
 ```toml
-[triggers]
-crons = ["*/5 * * * *"] # Every 5 minutes
+# wrangler.toml
+[env.production]
+tags = ["environment:production"]
+
+[env.preview]
+tags = ["environment:preview"]
 ```
 
-### 5. Submit Feedback Programmatically
-
-```typescript
-await fetch(`${API_URL}/api/v1/feedback`, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'X-API-Key': API_KEY,
-  },
-  body: JSON.stringify({
-    type: 'bug', // 'bug' | 'feature' | 'question'
-    title: 'Button not working on checkout page',
-    description: 'When I click the submit button, nothing happens.',
-    user: {
-      email: 'user@example.com',
-      name: 'John Doe',
-    },
-    metadata: {
-      url: window.location.href,
-      userAgent: navigator.userAgent,
-      customFields: {
-        userId: '123',
-        plan: 'premium',
-      },
-    },
-  }),
-});
-```
-
-## API Reference
-
-### Base URL
-
-```
-https://your-worker-url.workers.dev/api/v1
-```
-
-### Authentication
-
-All submission endpoints require an API key in the header:
-
-```
-X-API-Key: your_project_api_key
-```
-
-Admin/query endpoints require Basic Auth (username/password set in Worker environment).
-
-### Endpoints
-
-#### POST /api/v1/feedback
-Submit user feedback (bug reports, feature requests, questions)
-
-#### POST /api/v1/logs
-Submit log entries (supports batch up to 100 logs)
-
-#### POST /api/v1/errors
-Report errors with automatic deduplication
-
-#### POST /api/v1/health
-Submit health check status
-
-#### GET /api/v1/admin/feedback
-Query feedback entries (admin only)
-
-#### GET /api/v1/admin/logs
-Query log entries (admin only)
-
-#### GET /api/v1/admin/errors
-Query error entries (admin only)
-
-#### GET /api/v1/admin/health
-Query health check history (admin only)
-
-#### GET /api/v1/admin/projects
-List all projects (admin only)
-
-#### POST /api/v1/admin/projects
-Create new project (admin only)
-
-#### GET /api/v1/admin/stats
-Get dashboard statistics (admin only)
-
-## Rate Limits
-
-- **Feedback**: 100 requests per hour per project
-- **Logs**: 1000 requests per hour per project
-- **Errors**: 500 requests per hour per project
-- **Health**: 200 requests per hour per project
-
-Rate limits are enforced using Cloudflare KV.
-
-## Data Retention
-
-Default retention periods (configurable per project):
-
-- **Logs**: 7 days
-- **Errors**: 90 days (until marked resolved)
-- **Feedback**: Indefinite
-- **Health Checks**: 30 days
-
-## Security
-
-- API keys are randomly generated and stored securely
-- Admin dashboard protected with Basic Auth
-- CORS configurable per project
-- Input validation on all endpoints
-- SQL injection protection via Drizzle ORM
-- Rate limiting to prevent abuse
-
-## Development
-
-### Project Structure
+## Project Structure
 
 ```
 project-monitoring/
-├── workers/api/          # Cloudflare Worker API
-│   ├── src/
-│   │   ├── routes/       # API route handlers
-│   │   ├── lib/          # Database queries & helpers
-│   │   ├── middleware/   # Auth, CORS, rate limiting
-│   │   └── index.ts      # Main Worker entry
-│   └── drizzle/          # DB schema & migrations
-├── dashboard/            # Remix admin dashboard
-│   └── app/
-│       ├── routes/       # Dashboard pages
-│       ├── components/   # React components
-│       └── lib/          # API client
-├── widget/               # Embeddable feedback widget
-│   └── src/
-│       └── index.ts      # Widget source
-└── packages/shared/      # Shared TypeScript types
-    └── src/
-        ├── types.ts      # Type definitions
-        └── schemas.ts    # Zod validation schemas
+├── dashboard/
+│   ├── app/
+│   │   └── routes/
+│   │       └── logs.tsx          # Log viewer UI
+│   ├── functions/
+│   │   └── api/
+│   │       └── logs.ts            # Pages Function (R2 access)
+│   └── wrangler.toml              # R2 binding + config
+├── SETUP.md                       # Full setup guide
+└── README.md                      # This file
 ```
 
-### Available Scripts
+## What's NOT Included
 
-```bash
-# Root
-make dev-api          # Start API Worker
-make dev-dashboard    # Start dashboard
-make dev-widget       # Build widget in watch mode
-make build            # Build all packages
-make deploy:api       # Deploy API Worker
-make deploy:dashboard # Deploy dashboard
-make db-generate      # Generate Drizzle migrations
-make db-migrate       # Run migrations
+This is a **minimal log viewer**, not a full observability platform. It does NOT include:
 
-# Individual packages
-cd workers/api && yarn dev
-cd dashboard && yarn dev
-cd widget && make build
-```
+- ❌ Error tracking with deduplication (just view raw errors)
+- ❌ User feedback system (use GitHub Issues instead)
+- ❌ Health check monitoring (use Cloudflare Analytics)
+- ❌ Alerting (use Cloudflare email workers if needed)
+- ❌ Real-time tailing (logs delayed 30s-5min by Logpush)
+- ❌ Advanced querying (basic search only)
+
+For those features, use:
+- **Debugging**: `wrangler tail` (real-time)
+- **Metrics**: Cloudflare Workers Analytics
+- **Feedback**: GitHub Issues API
+- **Alerting**: Cloudflare Email Workers
 
 ## Troubleshooting
 
-### Database migrations fail
-
-Make sure you've created the D1 database and updated the ID in `wrangler.toml`:
+### No logs appearing?
 
 ```bash
-wrangler d1 create project-monitoring
+# Check Logpush is configured
+npx wrangler logpush list
+
+# Verify R2 has logs
+npx wrangler r2 object list worker-logs --prefix logs/
 ```
 
-### Rate limiting not working
+### Logs are delayed?
 
-Ensure KV namespace is created and bound in `wrangler.toml`:
+Normal! Logpush batches every 30s-5min. Enable auto-refresh in the dashboard.
 
-```bash
-wrangler kv:namespace create project-monitoring-rate-limit-kv
-```
+### Dashboard shows empty?
 
-### Dashboard shows authentication errors
+- Check you're viewing the correct date (UTC-based)
+- Verify R2 bucket binding in `dashboard/wrangler.toml`
+- Check authentication (username: `admin`)
 
-Check that `ADMIN_USERNAME` and `ADMIN_PASSWORD` are set in your Worker environment:
+**Full troubleshooting:** [SETUP.md#troubleshooting](SETUP.md#troubleshooting)
 
-```bash
-wrangler secret put ADMIN_USERNAME
-wrangler secret put ADMIN_PASSWORD
-```
+## Maintenance
 
-### Widget not loading
+### Log Retention
 
-Verify the `apiUrl` in the widget initialization matches your deployed Worker URL.
+Set up R2 lifecycle rules to auto-delete old logs:
+
+1. Cloudflare Dashboard → R2 → `worker-logs`
+2. Settings → Lifecycle Rules
+3. Add rule: Delete after 30 days with prefix `logs/`
+
+### Cost Monitoring
+
+Check R2 usage in Cloudflare Dashboard:
+- R2 → `worker-logs` → View storage size and operations
+- Typical: <1GB storage, <10k operations/month = ~$0.03/month
 
 ## Contributing
 
-Contributions welcome! Please open an issue or PR.
+This is a personal tool for monitoring FollowThru and CarScout projects. Feel free to fork and adapt for your own use.
 
 ## License
 
 MIT
 
-## Support
+---
 
-For issues or questions, please open a GitHub issue.
+**Simple. Cheap. Effective.**
+
+No external dependencies. No complex integrations. Just Cloudflare-native logging.

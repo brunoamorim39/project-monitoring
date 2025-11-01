@@ -2,35 +2,38 @@
   "name": "project-monitoring",
   "version": "1.0.0",
   "private": true,
-  "description": "Centralized project monitoring and feedback platform on Cloudflare",
+  "description": "Simple R2-based log viewer for Cloudflare Workers",
+  "type": "module",
   "packageManager": "yarn@4.10.3",
-  "workspaces": [
-    "workers/api",
-    "dashboard",
-    "widget",
-    "packages/*"
-  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
-    "dev:api": "yarn workspace @project-monitoring/api dev",
-    "dev:dashboard": "yarn workspace @project-monitoring/dashboard dev",
-    "dev:widget": "yarn workspace @project-monitoring/widget dev",
-    "build": "yarn workspaces foreach -A run build",
-    "deploy:api": "yarn workspace @project-monitoring/api deploy",
-    "deploy:dashboard": "yarn workspace @project-monitoring/dashboard deploy",
-    "db:generate": "node scripts/run-drizzle.js generate",
-    "db:migrate": "node scripts/run-drizzle.js migrate",
-    "db:push": "node scripts/run-drizzle.js push",
-    "db:studio": "node scripts/run-studio.js",
-    "db:check": "drizzle-kit check"
+    "dev": "remix vite:dev",
+    "build": "remix vite:build",
+    "preview": "wrangler pages dev ./build/client",
+    "deploy": "yarn build && wrangler pages deploy ./build/client",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@remix-run/cloudflare": "^2.17.0",
+    "@remix-run/cloudflare-pages": "^2.17.0",
+    "@remix-run/react": "^2.17.0",
+    "isbot": "^4.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240117.0",
+    "@remix-run/dev": "^2.17.0",
     "@types/node": "^20.11.5",
-    "concurrently": "^8.2.2",
-    "drizzle-kit": "^0.31.4",
-    "drizzle-orm": "^0.44.5",
-    "typescript": "^5.3.3"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.12",
+    "wrangler": "^4.45.0"
   }
 }

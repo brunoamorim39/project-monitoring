@@ -116,44 +116,26 @@ function parseRelativeRange(range: string): [Date, Date] {
 }
 
 /**
- * Generate R2 date prefixes for a date range
- * For ranges < 24 hours: Returns hour-level prefixes (YYYYMMDD/HH)
- * For ranges >= 24 hours: Returns day-level prefixes (YYYYMMDD)
+ * Generate R2 date prefixes (YYYYMMDD) for a date range
+ * Always uses day-level prefixes - files are filtered by timestamp after listing
+ * Returns array of prefixes to search (can span multiple days)
  */
 function generateDatePrefixes(from: Date, to: Date): string[] {
   const prefixes: string[] = [];
-  const rangeDurationHours = (to.getTime() - from.getTime()) / (1000 * 60 * 60);
+  const current = new Date(from);
 
-  // For ranges >= 24 hours, use day-level prefixes
-  if (rangeDurationHours >= 24) {
-    const current = new Date(from);
-    current.setUTCHours(0, 0, 0, 0);
+  // Set to start of day
+  current.setUTCHours(0, 0, 0, 0);
 
-    while (current <= to) {
-      const year = current.getUTCFullYear();
-      const month = String(current.getUTCMonth() + 1).padStart(2, '0');
-      const day = String(current.getUTCDate()).padStart(2, '0');
-      prefixes.push(`${year}${month}${day}`);
+  // Generate prefix for each day in range
+  while (current <= to) {
+    const year = current.getUTCFullYear();
+    const month = String(current.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(current.getUTCDate()).padStart(2, '0');
+    prefixes.push(`${year}${month}${day}`);
 
-      current.setUTCDate(current.getUTCDate() + 1);
-    }
-  } else {
-    // For ranges < 24 hours, use hour-level prefixes (YYYYMMDD/HH)
-    const current = new Date(from);
-
-    // Start from the beginning of the hour
-    current.setUTCMinutes(0, 0, 0);
-
-    while (current <= to) {
-      const year = current.getUTCFullYear();
-      const month = String(current.getUTCMonth() + 1).padStart(2, '0');
-      const day = String(current.getUTCDate()).padStart(2, '0');
-      const hour = String(current.getUTCHours()).padStart(2, '0');
-      prefixes.push(`${year}${month}${day}/${hour}`);
-
-      // Move to next hour
-      current.setUTCHours(current.getUTCHours() + 1);
-    }
+    // Move to next day
+    current.setUTCDate(current.getUTCDate() + 1);
   }
 
   return prefixes;

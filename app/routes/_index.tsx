@@ -13,6 +13,15 @@ interface CloudflareLogEvent {
   Outcome: string;
   ScriptName: string;
   ScriptTags?: string[];
+  Event?: {
+    Request?: {
+      URL: string;
+      Method: string;
+    };
+    Response?: {
+      Status: number;
+    };
+  };
   Logs?: Array<{
     Level: string;
     Message: any[];
@@ -24,13 +33,6 @@ interface CloudflareLogEvent {
     Timestamp: number;
     Stack?: string;
   }>;
-  Request?: {
-    URL: string;  // Note: Cloudflare uses "URL" (all caps)
-    Method: string;
-  };
-  Response?: {
-    Status: number;
-  };
 }
 
 interface LogEntry {
@@ -224,18 +226,6 @@ function parseNDJSON(text: string): CloudflareLogEvent[] {
 function groupByRequest(events: CloudflareLogEvent[]): RequestGroup[] {
   const requests: RequestGroup[] = [];
 
-  // DEBUG: Log first event to see actual Cloudflare data structure
-  if (events.length > 0) {
-    console.log('=== CLOUDFLARE EVENT SAMPLE (DEBUG) ===');
-    console.log(JSON.stringify(events[0], null, 2));
-    console.log('=== Request field exists?:', !!events[0].Request);
-    console.log('=== Request contents:', events[0].Request);
-    console.log('=== Response field exists?:', !!events[0].Response);
-    console.log('=== Response contents:', events[0].Response);
-    console.log('=== All top-level keys:', Object.keys(events[0]));
-    console.log('=== END DEBUG ===');
-  }
-
   for (const event of events) {
     const envTag = event.ScriptTags?.find(tag => tag.startsWith('environment:'));
     const environment = envTag?.split(':')[1];
@@ -277,9 +267,9 @@ function groupByRequest(events: CloudflareLogEvent[]): RequestGroup[] {
     requests.push({
       id: `${event.EventTimestampMs}`,
       timestamp: event.EventTimestampMs,
-      method: event.Request?.Method || 'UNKNOWN',
-      url: event.Request?.URL || 'No URL',  // Fixed: URL (all caps) not Url
-      status: event.Response?.Status || 0,
+      method: event.Event?.Request?.Method || 'UNKNOWN',
+      url: event.Event?.Request?.URL || 'No URL',
+      status: event.Event?.Response?.Status || 0,
       outcome: event.Outcome,
       worker: event.ScriptName,
       environment,

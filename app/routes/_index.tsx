@@ -25,7 +25,7 @@ interface CloudflareLogEvent {
     Stack?: string;
   }>;
   Request?: {
-    URL: string;
+    Url: string;  // Note: Cloudflare uses "Url" not "URL"
     Method: string;
   };
   Response?: {
@@ -116,25 +116,44 @@ function parseRelativeRange(range: string): [Date, Date] {
 }
 
 /**
- * Generate R2 date prefixes (YYYYMMDD) for a date range
- * Returns array of prefixes to search (can span multiple days)
+ * Generate R2 date prefixes for a date range
+ * For ranges < 24 hours: Returns hour-level prefixes (YYYYMMDD/HH)
+ * For ranges >= 24 hours: Returns day-level prefixes (YYYYMMDD)
  */
 function generateDatePrefixes(from: Date, to: Date): string[] {
   const prefixes: string[] = [];
-  const current = new Date(from);
+  const rangeDurationHours = (to.getTime() - from.getTime()) / (1000 * 60 * 60);
 
-  // Set to start of day
-  current.setUTCHours(0, 0, 0, 0);
+  // For ranges >= 24 hours, use day-level prefixes
+  if (rangeDurationHours >= 24) {
+    const current = new Date(from);
+    current.setUTCHours(0, 0, 0, 0);
 
-  // Generate prefix for each day in range
-  while (current <= to) {
-    const year = current.getUTCFullYear();
-    const month = String(current.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(current.getUTCDate()).padStart(2, '0');
-    prefixes.push(`${year}${month}${day}`);
+    while (current <= to) {
+      const year = current.getUTCFullYear();
+      const month = String(current.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(current.getUTCDate()).padStart(2, '0');
+      prefixes.push(`${year}${month}${day}`);
 
-    // Move to next day
-    current.setUTCDate(current.getUTCDate() + 1);
+      current.setUTCDate(current.getUTCDate() + 1);
+    }
+  } else {
+    // For ranges < 24 hours, use hour-level prefixes (YYYYMMDD/HH)
+    const current = new Date(from);
+
+    // Start from the beginning of the hour
+    current.setUTCMinutes(0, 0, 0);
+
+    while (current <= to) {
+      const year = current.getUTCFullYear();
+      const month = String(current.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(current.getUTCDate()).padStart(2, '0');
+      const hour = String(current.getUTCHours()).padStart(2, '0');
+      prefixes.push(`${year}${month}${day}/${hour}`);
+
+      // Move to next hour
+      current.setUTCHours(current.getUTCHours() + 1);
+    }
   }
 
   return prefixes;
@@ -172,6 +191,26 @@ function formatTimeRange(range: string, from?: Date, to?: Date): string {
   }
 
   return 'Last 30 minutes'; // fallback
+}
+
+/**
+ * Parse timestamp from R2 filename
+ * Format: YYYYMMDD/HH/timestamp_random.log.gz
+ * Example: 20251102/14/1730556300_abc123.log.gz → 1730556300000 (ms)
+ */
+function parseTimestampFromFilename(filename: string): number | null {
+  // Extract filename from path (get last part after /)
+  const parts = filename.split('/');
+  const basename = parts[parts.length - 1];
+
+  // Extract timestamp (part before first underscore)
+  const match = basename.match(/^(\d+)_/);
+  if (match) {
+    const timestampSeconds = parseInt(match[1], 10);
+    return timestampSeconds * 1000; // Convert to milliseconds
+  }
+
+  return null;
 }
 
 /**
@@ -245,7 +284,7 @@ function groupByRequest(events: CloudflareLogEvent[]): RequestGroup[] {
       id: `${event.EventTimestampMs}`,
       timestamp: event.EventTimestampMs,
       method: event.Request?.Method || 'UNKNOWN',
-      url: event.Request?.URL || 'No URL',
+      url: event.Request?.Url || 'No URL',  // Fixed: Url not URL
       status: event.Response?.Status || 0,
       outcome: event.Outcome,
       worker: event.ScriptName,
@@ -381,17 +420,51 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     console.log('[Loader] To:', rangeTo.toISOString());
     console.log('[Loader] Date prefixes:', datePrefixes);
 
-    // Collect all log files from relevant date prefixes
+    // Collect all log files from relevant date prefixes (with pagination)
     const allObjects: any[] = [];
     for (const prefix of datePrefixes) {
-      const list = await env.LOGS_BUCKET.list({ prefix, limit: 1000 });
-      console.log(`[Loader] Found ${list.objects.length} objects for prefix ${prefix}`);
-      allObjects.push(...list.objects);
+      let cursor: string | undefined = undefined;
+      let hasMore = true;
+      let totalForPrefix = 0;
+
+      // Handle pagination (up to 5000 files per prefix as safety limit)
+      while (hasMore && totalForPrefix < 5000) {
+        const list: any = await env.LOGS_BUCKET.list({
+          prefix,
+          limit: 1000,
+          cursor,
+        });
+
+        allObjects.push(...list.objects);
+        totalForPrefix += list.objects.length;
+
+        hasMore = list.truncated;
+        cursor = list.cursor;
+
+        if (!hasMore) break;
+      }
+
+      console.log(`[Loader] Found ${totalForPrefix} objects for prefix ${prefix}`);
     }
 
     console.log('[Loader] Total objects found:', allObjects.length);
 
-    if (allObjects.length === 0) {
+    // Filter files by timestamp BEFORE downloading
+    const relevantFiles = allObjects.filter(item => {
+      if (!item.key.endsWith('.log.gz')) return false;
+
+      const fileTimestamp = parseTimestampFromFilename(item.key);
+      if (!fileTimestamp) return true; // Include if we can't parse (safety fallback)
+
+      // Only include files where timestamp falls within our range
+      // Add 5-minute buffer on each side to account for log batching
+      const bufferMs = 5 * 60 * 1000;
+      return fileTimestamp >= (rangeFromMs - bufferMs) && fileTimestamp <= (rangeToMs + bufferMs);
+    });
+
+    console.log(`[Loader] Filtered to ${relevantFiles.length} relevant files (from ${allObjects.length} total)`);
+
+    if (relevantFiles.length === 0) {
       return json({
         requests: [],
         workers: [],
@@ -405,25 +478,40 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       });
     }
 
-    // Read and parse all log files
+    // Process files in parallel (batch of 10 at a time to avoid overwhelming)
     const allEvents: CloudflareLogEvent[] = [];
     const workers = new Set<string>();
+    const batchSize = 10;
 
-    for (const item of allObjects) {
-      if (!item.key.endsWith('.log.gz')) continue;
+    for (let i = 0; i < relevantFiles.length; i += batchSize) {
+      const batch = relevantFiles.slice(i, i + batchSize);
 
-      const object = await env.LOGS_BUCKET.get(item.key);
-      if (!object) continue;
+      const results = await Promise.allSettled(
+        batch.map(async (item) => {
+          try {
+            const object = await env.LOGS_BUCKET.get(item.key);
+            if (!object) return [];
 
-      const decompressed = await decompressGzip(object.body);
-      const events = parseNDJSON(decompressed);
+            const decompressed = await decompressGzip(object.body);
+            const events = parseNDJSON(decompressed);
 
-      // Filter events by timestamp range
-      const filteredEvents = events.filter(event => {
-        return event.EventTimestampMs >= rangeFromMs && event.EventTimestampMs <= rangeToMs;
-      });
+            // Filter events by timestamp range
+            return events.filter(event => {
+              return event.EventTimestampMs >= rangeFromMs && event.EventTimestampMs <= rangeToMs;
+            });
+          } catch (error) {
+            console.error(`[Loader] Error processing file ${item.key}:`, error);
+            return []; // Return empty array on error, don't crash
+          }
+        })
+      );
 
-      allEvents.push(...filteredEvents);
+      // Collect successful results
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          allEvents.push(...result.value);
+        }
+      }
     }
 
     console.log('[Loader] Total events in time range:', allEvents.length);

@@ -60,6 +60,8 @@ interface LoaderData {
   workers: string[];
   total: number;
   date: string;
+  serverTime: number;
+  expandedRequestIds: string[];
 }
 
 // ============================================
@@ -188,6 +190,8 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       workers: [],
       total: 0,
       date: getTodayPath(),
+      serverTime: Date.now(),
+      expandedRequestIds: [],
     });
   }
 
@@ -214,6 +218,8 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
         workers: [],
         total: 0,
         date,
+        serverTime: Date.now(),
+        expandedRequestIds: [],
       });
     }
 
@@ -280,11 +286,18 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     // Apply limit
     const limitedRequests = requests.slice(0, limit);
 
+    // Calculate which requests should be auto-expanded (those with exceptions)
+    const expandedRequestIds = limitedRequests
+      .filter(req => req.logs.some(log => log.hasException))
+      .map(req => req.id);
+
     return json({
       requests: limitedRequests,
       workers: Array.from(workers).sort(),
       total: requests.length,
       date,
+      serverTime: Date.now(),
+      expandedRequestIds,
     });
   } catch (error) {
     console.error('Error reading logs:', error);
@@ -296,6 +309,8 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
         workers: [],
         total: 0,
         date: getTodayPath(),
+        serverTime: Date.now(),
+        expandedRequestIds: [],
       },
       { status: 500 }
     );
@@ -315,26 +330,19 @@ export default function Logs() {
     workers: initialData?.workers || [],
     total: initialData?.total || 0,
     date: initialData?.date || getTodayPath(),
+    serverTime: initialData?.serverTime || Date.now(),
+    expandedRequestIds: initialData?.expandedRequestIds || [],
   };
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchInput, setSearchInput] = useState(searchParams.get("search") || "");
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [expandedRequests, setExpandedRequests] = useState<Set<string>>(new Set());
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [expandedRequests, setExpandedRequests] = useState<Set<string>>(
+    new Set(safeData.expandedRequestIds)
+  );
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date(safeData.serverTime));
   const searchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Auto-expand exceptions on mount
-  useEffect(() => {
-    const exceptionsToExpand = new Set<string>();
-    safeData.requests.forEach((req: any) => {
-      if (req.logs.some((log: any) => log.hasException)) {
-        exceptionsToExpand.add(req.id);
-      }
-    });
-    setExpandedRequests(exceptionsToExpand);
-  }, [safeData.requests]);
 
   // Auto-refresh interval (30 seconds)
   useEffect(() => {
@@ -849,7 +857,7 @@ export default function Logs() {
           <div className="log-header-info">
             <span>{safeData.requests.length} requests loaded</span>
             <span>Total: {safeData.total}</span>
-            {autoRefresh && <span>Auto-refresh: ON (last: {lastRefresh.toLocaleTimeString()})</span>}
+            {autoRefresh && <span suppressHydrationWarning>Auto-refresh: ON (last: {lastRefresh.toLocaleTimeString()})</span>}
             <span className="shortcuts-hint">
               Shortcuts: <kbd>/</kbd> search · <kbd>e</kbd> errors · <kbd>r</kbd> refresh · <kbd>c</kbd> clear
             </span>

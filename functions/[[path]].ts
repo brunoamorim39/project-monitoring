@@ -36,6 +36,11 @@ export const onRequest = async (context: any) => {
         });
       }
 
+      // Remove token from URL to prevent hydration mismatch
+      // Server and client will see the same URL (without token)
+      url.searchParams.delete('token');
+      context.request = new Request(url.toString(), context.request);
+
       console.log('[Pages Function] Valid token provided, access granted');
     } else {
       console.log('[Pages Function] Static asset request, skipping auth:', pathname);

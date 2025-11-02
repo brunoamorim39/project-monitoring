@@ -224,6 +224,18 @@ function parseNDJSON(text: string): CloudflareLogEvent[] {
 function groupByRequest(events: CloudflareLogEvent[]): RequestGroup[] {
   const requests: RequestGroup[] = [];
 
+  // DEBUG: Log first event to see actual Cloudflare data structure
+  if (events.length > 0) {
+    console.log('=== CLOUDFLARE EVENT SAMPLE (DEBUG) ===');
+    console.log(JSON.stringify(events[0], null, 2));
+    console.log('=== Request field exists?:', !!events[0].Request);
+    console.log('=== Request contents:', events[0].Request);
+    console.log('=== Response field exists?:', !!events[0].Response);
+    console.log('=== Response contents:', events[0].Response);
+    console.log('=== All top-level keys:', Object.keys(events[0]));
+    console.log('=== END DEBUG ===');
+  }
+
   for (const event of events) {
     const envTag = event.ScriptTags?.find(tag => tag.startsWith('environment:'));
     const environment = envTag?.split(':')[1];

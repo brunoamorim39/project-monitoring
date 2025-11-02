@@ -210,7 +210,19 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 
     // List log files for the specified date
     const prefix = `logs/${date}`;
+
+    // Debug logging to diagnose no logs issue
+    console.log('[Loader] Date from URL params:', url.searchParams.get('date'));
+    console.log('[Loader] Today path (UTC):', getTodayPath());
+    console.log('[Loader] Using date:', date);
+    console.log('[Loader] Searching R2 with prefix:', prefix);
+
     const list = await env.LOGS_BUCKET.list({ prefix, limit: 100 });
+
+    console.log('[Loader] Found objects:', list.objects.length);
+    if (list.objects.length > 0) {
+      console.log('[Loader] First 5 object keys:', list.objects.slice(0, 5).map((o: any) => o.key));
+    }
 
     if (list.objects.length === 0) {
       return json({
@@ -238,8 +250,12 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       allEvents.push(...events);
     }
 
+    console.log('[Loader] Total events parsed:', allEvents.length);
+
     // Group by request
     let requests = groupByRequest(allEvents);
+
+    console.log('[Loader] Grouped into requests:', requests.length);
 
     // Track workers
     requests.forEach(req => workers.add(req.worker));

@@ -69,14 +69,14 @@ interface LoaderData {
 // ============================================
 
 /**
- * Get today's date path for R2 (YYYY/MM/DD)
+ * Get today's date path for R2 (YYYYMMDD)
  */
 function getTodayPath(): string {
   const now = new Date();
   const year = now.getUTCFullYear();
   const month = String(now.getUTCMonth() + 1).padStart(2, '0');
   const day = String(now.getUTCDate()).padStart(2, '0');
-  return `${year}/${month}/${day}`;
+  return `${year}${month}${day}`;
 }
 
 /**
@@ -209,7 +209,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     const limit = 500;
 
     // List log files for the specified date
-    const prefix = `logs/${date}`;
+    const prefix = date;  // No "logs/" prefix - Logpush writes directly to YYYYMMDD folders
 
     // Debug logging to diagnose no logs issue
     console.log('[Loader] Date from URL params:', url.searchParams.get('date'));

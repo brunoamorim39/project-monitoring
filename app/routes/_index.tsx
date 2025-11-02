@@ -1,5 +1,5 @@
 import { json, type LoaderFunctionArgs } from "@remix-run/cloudflare";
-import { useLoaderData, useSearchParams } from "@remix-run/react";
+import { useLoaderData, useSearchParams, useRevalidator } from "@remix-run/react";
 import { useState, useEffect, useRef } from "react";
 import Layout from "~/components/Layout";
 import { getEnv } from "~/utils/env.server";
@@ -25,7 +25,7 @@ interface CloudflareLogEvent {
     Stack?: string;
   }>;
   Request?: {
-    Url: string;  // Note: Cloudflare uses "Url" not "URL"
+    URL: string;  // Note: Cloudflare uses "URL" (all caps)
     Method: string;
   };
   Response?: {
@@ -266,7 +266,7 @@ function groupByRequest(events: CloudflareLogEvent[]): RequestGroup[] {
       id: `${event.EventTimestampMs}`,
       timestamp: event.EventTimestampMs,
       method: event.Request?.Method || 'UNKNOWN',
-      url: event.Request?.Url || 'No URL',  // Fixed: Url not URL
+      url: event.Request?.URL || 'No URL',  // Fixed: URL (all caps) not Url
       status: event.Response?.Status || 0,
       outcome: event.Outcome,
       worker: event.ScriptName,
@@ -607,6 +607,7 @@ export default function Logs() {
   };
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const revalidator = useRevalidator();
   const [searchInput, setSearchInput] = useState(searchParams.get("search") || "");
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [expandedRequests, setExpandedRequests] = useState<Set<string>>(
@@ -621,12 +622,12 @@ export default function Logs() {
     if (!autoRefresh) return;
 
     const interval = setInterval(() => {
-      window.location.reload();
+      revalidator.revalidate();
       setLastRefresh(new Date());
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [autoRefresh]);
+  }, [autoRefresh, revalidator]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -647,7 +648,7 @@ export default function Logs() {
           break;
         case 'r':
           e.preventDefault();
-          window.location.reload();
+          revalidator.revalidate();
           break;
         case 'c':
           e.preventDefault();

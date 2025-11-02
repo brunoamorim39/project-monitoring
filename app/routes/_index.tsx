@@ -59,7 +59,10 @@ interface LoaderData {
   requests: RequestGroup[];
   workers: string[];
   total: number;
-  date: string;
+  date: string; // Keep for backward compatibility
+  range: string; // Time range string (e.g., "now-30m")
+  rangeFrom: number; // Start timestamp in ms
+  rangeTo: number; // End timestamp in ms
   serverTime: number;
   expandedRequestIds: string[];
 }
@@ -77,6 +80,98 @@ function getTodayPath(): string {
   const month = String(now.getUTCMonth() + 1).padStart(2, '0');
   const day = String(now.getUTCDate()).padStart(2, '0');
   return `${year}${month}${day}`;
+}
+
+/**
+ * Parse relative time range (e.g., "now-30m", "now-1h") into Date range
+ */
+function parseRelativeRange(range: string): [Date, Date] {
+  const now = new Date();
+  const match = range.match(/^now-(\d+)([mhd])$/);
+
+  if (!match) {
+    // If invalid format, default to last 30 minutes
+    const from = new Date(now.getTime() - 30 * 60 * 1000);
+    return [from, now];
+  }
+
+  const amount = parseInt(match[1], 10);
+  const unit = match[2];
+
+  let milliseconds = 0;
+  switch (unit) {
+    case 'm': // minutes
+      milliseconds = amount * 60 * 1000;
+      break;
+    case 'h': // hours
+      milliseconds = amount * 60 * 60 * 1000;
+      break;
+    case 'd': // days
+      milliseconds = amount * 24 * 60 * 60 * 1000;
+      break;
+  }
+
+  const from = new Date(now.getTime() - milliseconds);
+  return [from, now];
+}
+
+/**
+ * Generate R2 date prefixes (YYYYMMDD) for a date range
+ * Returns array of prefixes to search (can span multiple days)
+ */
+function generateDatePrefixes(from: Date, to: Date): string[] {
+  const prefixes: string[] = [];
+  const current = new Date(from);
+
+  // Set to start of day
+  current.setUTCHours(0, 0, 0, 0);
+
+  // Generate prefix for each day in range
+  while (current <= to) {
+    const year = current.getUTCFullYear();
+    const month = String(current.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(current.getUTCDate()).padStart(2, '0');
+    prefixes.push(`${year}${month}${day}`);
+
+    // Move to next day
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+
+  return prefixes;
+}
+
+/**
+ * Format time range for display in UI
+ */
+function formatTimeRange(range: string, from?: Date, to?: Date): string {
+  // For relative ranges, show friendly names
+  const relativeLabels: Record<string, string> = {
+    'now-30m': 'Last 30 minutes',
+    'now-1h': 'Last 1 hour',
+    'now-4h': 'Last 4 hours',
+    'now-12h': 'Last 12 hours',
+    'now-24h': 'Last 24 hours',
+    'now-7d': 'Last 7 days',
+  };
+
+  if (relativeLabels[range]) {
+    return relativeLabels[range];
+  }
+
+  // For custom ranges, format the dates
+  if (from && to) {
+    const formatDate = (d: Date) => {
+      const month = d.toLocaleString('en-US', { month: 'short' });
+      const day = d.getDate();
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      return `${month} ${day}, ${hours}:${minutes}`;
+    };
+
+    return `${formatDate(from)} - ${formatDate(to)}`;
+  }
+
+  return 'Last 30 minutes'; // fallback
 }
 
 /**
@@ -177,6 +272,66 @@ function mapLogLevel(level: string): string {
 }
 
 // ============================================
+// TimeRangeSelector Component
+// ============================================
+
+interface TimeRangeSelectorProps {
+  currentRange: string;
+  onApply: (range: string) => void;
+}
+
+function TimeRangeSelector({ currentRange, onApply }: TimeRangeSelectorProps) {
+  const presets = [
+    { label: 'Last 30 minutes', value: 'now-30m' },
+    { label: 'Last 1 hour', value: 'now-1h' },
+    { label: 'Last 4 hours', value: 'now-4h' },
+    { label: 'Last 12 hours', value: 'now-12h' },
+    { label: 'Last 24 hours', value: 'now-24h' },
+    { label: 'Last 7 days', value: 'now-7d' },
+  ];
+
+  return (
+    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+      <span style={{ color: '#8b949e', fontSize: '14px', fontWeight: 500 }}>Time range:</span>
+      {presets.map(preset => {
+        const isActive = currentRange === preset.value;
+        return (
+          <button
+            key={preset.value}
+            onClick={() => onApply(preset.value)}
+            style={{
+              background: isActive ? '#1f6feb' : '#21262d',
+              color: isActive ? '#ffffff' : '#c9d1d9',
+              border: `1px solid ${isActive ? '#1f6feb' : '#30363d'}`,
+              borderRadius: '6px',
+              padding: '6px 12px',
+              fontSize: '14px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              if (!isActive) {
+                e.currentTarget.style.background = '#30363d';
+                e.currentTarget.style.borderColor = '#8b949e';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isActive) {
+                e.currentTarget.style.background = '#21262d';
+                e.currentTarget.style.borderColor = '#30363d';
+              }
+            }}
+          >
+            {preset.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================
 // Remix Loader
 // ============================================
 
@@ -185,11 +340,15 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 
   // In dev mode without R2 binding, return empty data
   if (!env.LOGS_BUCKET) {
+    const [rangeFrom, rangeTo] = parseRelativeRange('now-30m');
     return json({
       requests: [],
       workers: [],
       total: 0,
       date: getTodayPath(),
+      range: 'now-30m',
+      rangeFrom: rangeFrom.getTime(),
+      rangeTo: rangeTo.getTime(),
       serverTime: Date.now(),
       expandedRequestIds: [],
     });
@@ -200,7 +359,13 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 
   try {
     const url = new URL(request.url);
-    const date = url.searchParams.get('date') || getTodayPath();
+
+    // Get time range from URL params (default to last 30 minutes)
+    const range = url.searchParams.get('range') || 'now-30m';
+    const [rangeFrom, rangeTo] = parseRelativeRange(range);
+    const rangeFromMs = rangeFrom.getTime();
+    const rangeToMs = rangeTo.getTime();
+
     const workerFilter = url.searchParams.get('worker');
     const quickFilter = url.searchParams.get('filter'); // 'errors', '5xx', 'exceptions'
     const statusFilter = url.searchParams.get('status'); // '2xx', '3xx', '4xx', '5xx'
@@ -208,28 +373,33 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     const searchQuery = url.searchParams.get('search');
     const limit = 500;
 
-    // List log files for the specified date
-    const prefix = date;  // No "logs/" prefix - Logpush writes directly to YYYYMMDD folders
+    // Generate date prefixes for the time range
+    const datePrefixes = generateDatePrefixes(rangeFrom, rangeTo);
 
-    // Debug logging to diagnose no logs issue
-    console.log('[Loader] Date from URL params:', url.searchParams.get('date'));
-    console.log('[Loader] Today path (UTC):', getTodayPath());
-    console.log('[Loader] Using date:', date);
-    console.log('[Loader] Searching R2 with prefix:', prefix);
+    console.log('[Loader] Time range:', range);
+    console.log('[Loader] From:', rangeFrom.toISOString());
+    console.log('[Loader] To:', rangeTo.toISOString());
+    console.log('[Loader] Date prefixes:', datePrefixes);
 
-    const list = await env.LOGS_BUCKET.list({ prefix, limit: 100 });
-
-    console.log('[Loader] Found objects:', list.objects.length);
-    if (list.objects.length > 0) {
-      console.log('[Loader] First 5 object keys:', list.objects.slice(0, 5).map((o: any) => o.key));
+    // Collect all log files from relevant date prefixes
+    const allObjects: any[] = [];
+    for (const prefix of datePrefixes) {
+      const list = await env.LOGS_BUCKET.list({ prefix, limit: 1000 });
+      console.log(`[Loader] Found ${list.objects.length} objects for prefix ${prefix}`);
+      allObjects.push(...list.objects);
     }
 
-    if (list.objects.length === 0) {
+    console.log('[Loader] Total objects found:', allObjects.length);
+
+    if (allObjects.length === 0) {
       return json({
         requests: [],
         workers: [],
         total: 0,
-        date,
+        date: getTodayPath(),
+        range,
+        rangeFrom: rangeFromMs,
+        rangeTo: rangeToMs,
         serverTime: Date.now(),
         expandedRequestIds: [],
       });
@@ -239,7 +409,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     const allEvents: CloudflareLogEvent[] = [];
     const workers = new Set<string>();
 
-    for (const item of list.objects) {
+    for (const item of allObjects) {
       if (!item.key.endsWith('.log.gz')) continue;
 
       const object = await env.LOGS_BUCKET.get(item.key);
@@ -247,10 +417,16 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 
       const decompressed = await decompressGzip(object.body);
       const events = parseNDJSON(decompressed);
-      allEvents.push(...events);
+
+      // Filter events by timestamp range
+      const filteredEvents = events.filter(event => {
+        return event.EventTimestampMs >= rangeFromMs && event.EventTimestampMs <= rangeToMs;
+      });
+
+      allEvents.push(...filteredEvents);
     }
 
-    console.log('[Loader] Total events parsed:', allEvents.length);
+    console.log('[Loader] Total events in time range:', allEvents.length);
 
     // Group by request
     let requests = groupByRequest(allEvents);
@@ -311,7 +487,10 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       requests: limitedRequests,
       workers: Array.from(workers).sort(),
       total: requests.length,
-      date,
+      date: getTodayPath(), // Keep for backward compatibility
+      range,
+      rangeFrom: rangeFromMs,
+      rangeTo: rangeToMs,
       serverTime: Date.now(),
       expandedRequestIds,
     });
@@ -319,12 +498,16 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     console.error('Error reading logs:', error);
     // Return empty data with 500 status instead of throwing
     // This allows the UI to render gracefully with an error message
+    const [rangeFrom, rangeTo] = parseRelativeRange('now-30m');
     return json(
       {
         requests: [],
         workers: [],
         total: 0,
         date: getTodayPath(),
+        range: 'now-30m',
+        rangeFrom: rangeFrom.getTime(),
+        rangeTo: rangeTo.getTime(),
         serverTime: Date.now(),
         expandedRequestIds: [],
       },
@@ -346,6 +529,9 @@ export default function Logs() {
     workers: initialData?.workers || [],
     total: initialData?.total || 0,
     date: initialData?.date || getTodayPath(),
+    range: initialData?.range || 'now-30m',
+    rangeFrom: initialData?.rangeFrom || Date.now() - 30 * 60 * 1000,
+    rangeTo: initialData?.rangeTo || Date.now(),
     serverTime: initialData?.serverTime || Date.now(),
     expandedRequestIds: initialData?.expandedRequestIds || [],
   };
@@ -594,8 +780,7 @@ export default function Logs() {
         }
 
         .log-controls select,
-        .log-controls input[type="text"],
-        .log-controls input[type="date"] {
+        .log-controls input[type="text"] {
           background: #0d1117;
           border: 1px solid #30363d;
           color: #c9d1d9;
@@ -605,8 +790,7 @@ export default function Logs() {
         }
 
         .log-controls select:focus,
-        .log-controls input[type="text"]:focus,
-        .log-controls input[type="date"]:focus {
+        .log-controls input[type="text"]:focus {
           outline: none;
           border-color: #58a6ff;
         }
@@ -871,6 +1055,9 @@ export default function Logs() {
         <div className="log-header">
           <h1>Worker Logs</h1>
           <div className="log-header-info">
+            <span style={{ color: '#58a6ff', fontWeight: 500 }}>
+              {formatTimeRange(safeData.range, new Date(safeData.rangeFrom), new Date(safeData.rangeTo))}
+            </span>
             <span>{safeData.requests.length} requests loaded</span>
             <span>Total: {safeData.total}</span>
             {autoRefresh && <span suppressHydrationWarning>Auto-refresh: ON (last: {lastRefresh.toLocaleTimeString()})</span>}
@@ -881,6 +1068,16 @@ export default function Logs() {
         </div>
 
         <div className="log-controls">
+          <TimeRangeSelector
+            currentRange={safeData.range}
+            onApply={(range) => {
+              const params = new URLSearchParams(searchParams);
+              params.set('range', range);
+              params.delete('date'); // Remove old date param
+              setSearchParams(params, { replace: true });
+            }}
+          />
+
           <div className="quick-filters">
             <button
               className={`quick-filter-btn ${searchParams.get("filter") === "errors" ? "active" : ""}`}
@@ -901,15 +1098,6 @@ export default function Logs() {
               Exceptions
             </button>
           </div>
-
-          <input
-            type="date"
-            value={safeData.date.replace(/\//g, "-")}
-            onChange={(e) => {
-              const [year, month, day] = e.target.value.split("-");
-              handleFilterChange("date", `${year}/${month}/${day}`);
-            }}
-          />
 
           <select value={searchParams.get("worker") || ""} onChange={(e) => handleFilterChange("worker", e.target.value)}>
             <option value="">All Workers</option>

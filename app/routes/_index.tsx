@@ -13,6 +13,7 @@ interface CloudflareLogEvent {
   Outcome: string;
   ScriptName: string;
   ScriptTags?: string[];
+  // Nested location (some event types)
   Event?: {
     Request?: {
       URL: string;
@@ -21,6 +22,14 @@ interface CloudflareLogEvent {
     Response?: {
       Status: number;
     };
+  };
+  // Top-level location (other event types, especially errors)
+  Request?: {
+    URL: string;
+    Method: string;
+  };
+  Response?: {
+    Status: number;
   };
   Logs?: Array<{
     Level: string;
@@ -264,12 +273,17 @@ function groupByRequest(events: CloudflareLogEvent[]): RequestGroup[] {
       }
     }
 
+    // Try nested location first (event.Event), then top level
+    // Cloudflare uses different locations for different event types
+    const requestData = event.Event?.Request || event.Request;
+    const responseData = event.Event?.Response || event.Response;
+
     requests.push({
       id: `${event.EventTimestampMs}`,
       timestamp: event.EventTimestampMs,
-      method: event.Event?.Request?.Method || 'UNKNOWN',
-      url: event.Event?.Request?.URL || 'No URL',
-      status: event.Event?.Response?.Status || 0,
+      method: requestData?.Method || 'UNKNOWN',
+      url: requestData?.URL || 'No URL',
+      status: responseData?.Status || 0,
       outcome: event.Outcome,
       worker: event.ScriptName,
       environment,

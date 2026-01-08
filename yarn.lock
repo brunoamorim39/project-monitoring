@@ -1823,12 +1823,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@remix-run/react@npm:^2.17.0":
-  version: 2.17.2
-  resolution: "@remix-run/react@npm:2.17.2"
+"@remix-run/react@npm:^2.17.3":
+  version: 2.17.3
+  resolution: "@remix-run/react@npm:2.17.3"
   dependencies:
     "@remix-run/router": "npm:1.23.0"
-    "@remix-run/server-runtime": "npm:2.17.2"
+    "@remix-run/server-runtime": "npm:2.17.3"
     react-router: "npm:6.30.0"
     react-router-dom: "npm:6.30.0"
     turbo-stream: "npm:2.4.1"
@@ -1839,7 +1839,7 @@ __metadata:
   peerDependenciesMeta:
     typescript:
       optional: true
-  checksum: 10c0/392bde89cc1f9f01cab692a45710d821df9d2410b6b1e54d672511bfd044124f7e77560aa42a937563afaea21162175582885f1e89dd2631093d374bdeb5e0ad
+  checksum: 10c0/029f82dcc333f4f0e9ea5ad981e845a693e8e9a31dafe4c170d7007db7fbb620b0b7d1caefdb03f40fe694493edeacd74af969881ce4ca7e628ab69baac48b07
   languageName: node
   linkType: hard
 
@@ -1867,6 +1867,26 @@ __metadata:
     typescript:
       optional: true
   checksum: 10c0/45357fa2e910d5927728c6e8177bd9bdf7cf299c7919dd8cdbd8b322be145ce71ab4b56b1739ba7f86c6cb93a1d8424ee973ff9a47f316a3647549d5a7add1f7
+  languageName: node
+  linkType: hard
+
+"@remix-run/server-runtime@npm:2.17.3":
+  version: 2.17.3
+  resolution: "@remix-run/server-runtime@npm:2.17.3"
+  dependencies:
+    "@remix-run/router": "npm:1.23.0"
+    "@types/cookie": "npm:^0.6.0"
+    "@web3-storage/multipart-parser": "npm:^1.0.0"
+    cookie: "npm:^0.7.2"
+    set-cookie-parser: "npm:^2.4.8"
+    source-map: "npm:^0.7.3"
+    turbo-stream: "npm:2.4.1"
+  peerDependencies:
+    typescript: ^5.1.0
+  peerDependenciesMeta:
+    typescript:
+      optional: true
+  checksum: 10c0/87b62e6547ec76a7bee409f90ad9b4ac6972010e41d6f103a1e9bceb197e4ecd572ddf66e7d4c566426fb49c2807be4de2b6d899d9ccbb6561bb1d0090d9cc53
   languageName: node
   linkType: hard
 
@@ -6390,7 +6410,7 @@ __metadata:
     "@remix-run/cloudflare": "npm:^2.17.0"
     "@remix-run/cloudflare-pages": "npm:^2.17.0"
     "@remix-run/dev": "npm:^2.17.0"
-    "@remix-run/react": "npm:^2.17.0"
+    "@remix-run/react": "npm:^2.17.3"
     "@types/node": "npm:^20.11.5"
     "@types/react": "npm:^19.0.0"
     "@types/react-dom": "npm:^19.0.0"
